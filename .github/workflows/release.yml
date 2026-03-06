@@ -21,16 +21,11 @@ permissions:
 jobs:
   build-and-release:
     strategy:
+      fail-fast: false
       matrix:
-        include:
-          - os: ubuntu-latest
-            platform: linux
-          - os: windows-latest
-            platform: win
-          - os: macos-latest
-            platform: mac
+        platform: [macos-latest, ubuntu-22.04, windows-latest]
 
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ matrix.platform }}
 
     steps:
       - name: Checkout repository
@@ -42,102 +37,38 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust Cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+
       - name: Install Linux dependencies
-        if: matrix.platform == 'linux'
+        if: matrix.platform == 'ubuntu-22.04'
         run: |
           sudo apt-get update
-          sudo apt-get install -y rpm libarchive-tools
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev libappindicator3-dev librsvg2-dev patchelf libjavascriptcoregtk-4.1-dev libwebkit2gtk-4.1-dev
 
       - name: Install dependencies
         run: npm ci
 
-      # macOS: 証明書をキーチェーンにインポート
-      - name: Import Code Signing Certificate
-        if: matrix.platform == 'mac'
-        env:
-          CSC_LINK: ${{ secrets.CSC_LINK }}
-          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
-        run: |
-          # 証明書がない場合はスキップ
-          if [ -z "$CSC_LINK" ]; then
-            echo "No code signing certificate provided, skipping..."
-            exit 0
-          fi
-
-          # 一時キーチェーンを作成
-          KEYCHAIN_PATH=$RUNNER_TEMP/build.keychain
-          KEYCHAIN_PASSWORD=$(openssl rand -base64 32)
-
-          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
-          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-
-          # 証明書をデコードしてインポート
-          echo "$CSC_LINK" | base64 --decode > "$RUNNER_TEMP/certificate.p12"
-          security import "$RUNNER_TEMP/certificate.p12" -P "$CSC_KEY_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
-          rm -f "$RUNNER_TEMP/certificate.p12"
-
-          # キーチェーンを検索リストに追加
-          security list-keychains -d user -s "$KEYCHAIN_PATH" $(security list-keychains -d user | tr -d '"')
-          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-
-      - name: Build for ${{ matrix.platform }}
-        run: npm run build:${{ matrix.platform }}
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # macOS署名・公証用の環境変数
-          CSC_LINK: ${{ matrix.platform == 'mac' && secrets.CSC_LINK || '' }}
-          CSC_KEY_PASSWORD: ${{ matrix.platform == 'mac' && secrets.CSC_KEY_PASSWORD || '' }}
-          APPLE_ID: ${{ matrix.platform == 'mac' && secrets.APPLE_ID || '' }}
-          APPLE_ID_PASSWORD: ${{ matrix.platform == 'mac' && secrets.APPLE_ID_PASSWORD || '' }}
-          APPLE_TEAM_ID: ${{ matrix.platform == 'mac' && secrets.APPLE_TEAM_ID || '' }}
-          # 証明書の自動検出を無効化（明示的に設定された証明書のみ使用）
-          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: unitone-${{ matrix.platform }}
-          path: dist/
-          if-no-files-found: error
-
-  create-release:
-    needs: build-and-release
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: artifacts
-
-      - name: Prepare release files
-        run: |
-          mkdir -p release-files
-
-          # Windows files
-          find artifacts/unitone-win -name "*.exe" -exec cp {} release-files/ \;
-
-          # macOS files
-          find artifacts/unitone-mac -name "*.dmg" -exec cp {} release-files/ \;
-          find artifacts/unitone-mac -name "*.zip" -exec cp {} release-files/ \;
-
-          # Linux files
-          find artifacts/unitone-linux -name "*.AppImage" -exec cp {} release-files/ \;
-          find artifacts/unitone-linux -name "*.deb" -exec cp {} release-files/ \;
-          find artifacts/unitone-linux -name "*.rpm" -exec cp {} release-files/ \;
-
-          # List files for debugging
-          echo "Release files:"
-          ls -la release-files/
-
-      - name: Upload assets to Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ github.event.release.tag_name || inputs.tag_name || github.event.inputs.tag_name }}
-          files: release-files/*
+      - name: Build and Release
+        uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Signing secrets for Tauri
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+        with:
+          tagName: ${{ github.event.release.tag_name || inputs.tag_name || github.event.inputs.tag_name }}
+          releaseName: "Unitone ${{ github.event.release.tag_name || inputs.tag_name || github.event.inputs.tag_name }}"
+          releaseBody: ${{ github.event.release.body }}
+          releaseDraft: false
+          prerelease: false
