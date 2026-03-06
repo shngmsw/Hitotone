@@ -3,7 +3,7 @@ use std::sync::Mutex;
 use tauri::AppHandle;
 use tauri_plugin_store::StoreExt;
 
-const STORE_FILE: &str = "unitone-config.json";
+const STORE_FILE: &str = "hitotone-config.json";
 
 pub fn load_state(app: &AppHandle, state: &Mutex<AppState>) {
     let store = match app.store(STORE_FILE) {

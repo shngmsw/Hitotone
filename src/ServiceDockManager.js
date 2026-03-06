@@ -113,8 +113,8 @@ export class ServiceDockManager {
     });
 
     // アクティブ状態を復元
-    if (this.unitone.activeServiceId) {
-      const activeItem = document.querySelector(`.service-item[data-service-id="${this.unitone.activeServiceId}"]`);
+    if (this.hitotone.activeServiceId) {
+      const activeItem = document.querySelector(`.service-item[data-service-id="${this.hitotone.activeServiceId}"]`);
       if (activeItem) {
         activeItem.classList.add('active');
       }
@@ -177,8 +177,8 @@ export class ServiceDockManager {
       const draggedId = this.draggedElement.dataset.serviceId;
       const targetId = dropTarget.dataset.serviceId;
 
-      const draggedIndex = this.unitone.services.findIndex(s => s.id === draggedId);
-      let targetIndex = this.unitone.services.findIndex(s => s.id === targetId);
+      const draggedIndex = this.hitotone.services.findIndex(s => s.id === draggedId);
+      let targetIndex = this.hitotone.services.findIndex(s => s.id === targetId);
 
       if (draggedIndex !== -1 && targetIndex !== -1) {
         if (this.dropPosition === 'below') {
@@ -189,10 +189,10 @@ export class ServiceDockManager {
           targetIndex -= 1;
         }
 
-        const [draggedService] = this.unitone.services.splice(draggedIndex, 1);
-        this.unitone.services.splice(targetIndex, 0, draggedService);
+        const [draggedService] = this.hitotone.services.splice(draggedIndex, 1);
+        this.hitotone.services.splice(targetIndex, 0, draggedService);
 
-        await invoke('reorder_services', { services: this.unitone.services });
+        await invoke('reorder_services', { services: this.hitotone.services });
 
         this.render();
         this.restoreBadgesAndActiveState();

@@ -1,8 +1,10 @@
 {
   "$schema": "https://raw.githubusercontent.com/tauri-apps/tauri/dev/crates/tauri-utils/schema.json",
   "identifier": "default",
-  "description": "Default permissions for Unitone",
-  "windows": ["main"],
+  "description": "Default permissions for Hitotone",
+  "windows": [
+    "main"
+  ],
   "permissions": [
     "core:default",
     "core:window:default",

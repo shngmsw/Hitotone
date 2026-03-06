@@ -154,7 +154,7 @@ pub fn create_ai_webview_window(
         "ai-webview",
         tauri::WebviewUrl::External(parsed_url),
     )
-    .title("Unitone - AI")
+    .title("Hitotone - AI")
     .inner_size(layout.ai_width, layout.ai_height)
     .decorations(false)
     .skip_taskbar(true)

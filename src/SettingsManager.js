@@ -107,7 +107,7 @@ export class SettingsManager {
   }
 
   openEditService(serviceId) {
-    const service = this.unitone.services.find(s => s.id === serviceId);
+    const service = this.hitotone.services.find(s => s.id === serviceId);
     if (!service) return;
 
     const idInput = document.getElementById('edit-service-id');
