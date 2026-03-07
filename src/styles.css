@@ -455,6 +455,89 @@ body.platform-darwin #service-dock {
   transform: scale(0.98);
 }
 
+.preset-services-grid {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-md);
+  margin-bottom: var(--space-2xl);
+  max-width: 600px;
+}
+
+.preset-service-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: var(--space-md);
+  width: 100px;
+  height: 100px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  color: var(--text-primary);
+}
+
+.preset-service-btn:hover {
+  background: var(--bg-hover);
+  border-color: var(--accent);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-sm);
+}
+
+.preset-icon {
+  font-size: 32px;
+  margin-bottom: var(--space-sm);
+}
+
+.preset-name {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.onboarding-divider {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: var(--space-xl);
+  color: var(--text-secondary);
+  font-size: 14px;
+  width: 100%;
+  max-width: 400px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.onboarding-divider .divider-line {
+  flex-grow: 1;
+  height: 1px;
+  background: var(--border-color);
+  margin: 0 var(--space-md);
+}
+
+.custom-service-hint {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin-bottom: var(--space-md);
+}
+
+.secondary-btn {
+  padding: var(--space-sm) var(--space-lg);
+  font-size: 14px;
+  background: transparent;
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: background-color var(--transition-fast);
+}
+
+.secondary-btn:hover {
+  background: var(--bg-hover);
+}
+
 /* L3: AIコンパニオン - SHIG #64 トランジションは両方向につける */
 #ai-companion {
   width: var(--ai-width);

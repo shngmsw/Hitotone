@@ -1,11 +1,13 @@
 <!DOCTYPE html>
 <html lang="ja">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Hitotone</title>
   <link rel="stylesheet" href="styles.css">
 </head>
+
 <body>
   <!-- アプリヘッダー（ドラッグでウィンドウ移動可能） -->
   <header id="app-header" data-tauri-drag-region>
@@ -37,15 +39,52 @@
       <div id="onboarding-screen" class="hidden">
         <div class="onboarding-content">
           <h1>Hitotoneへようこそ</h1>
-          <p>最初のチャットサービスを追加してタスクを始めましょう。</p>
-          <button id="onboarding-add-service-btn" class="primary-btn">サービスを追加する</button>
+          <p>最初のアプリを選択してタスクを始めましょう。</p>
+
+          <div class="preset-services-grid">
+            <button class="preset-service-btn" data-preset-id="slack" data-preset-name="Slack"
+              data-preset-url="https://app.slack.com" data-preset-icon="💬">
+              <span class="preset-icon">💬</span>
+              <span class="preset-name">Slack</span>
+            </button>
+            <button class="preset-service-btn" data-preset-id="gchat" data-preset-name="Google Chat"
+              data-preset-url="https://chat.google.com" data-preset-icon="💭">
+              <span class="preset-icon">💭</span>
+              <span class="preset-name">Google Chat</span>
+            </button>
+            <button class="preset-service-btn" data-preset-id="teams" data-preset-name="Teams"
+              data-preset-url="https://teams.microsoft.com" data-preset-icon="👥">
+              <span class="preset-icon">👥</span>
+              <span class="preset-name">Teams</span>
+            </button>
+            <button class="preset-service-btn" data-preset-id="chatwork" data-preset-name="Chatwork"
+              data-preset-url="https://www.chatwork.com" data-preset-icon="📝">
+              <span class="preset-icon">📝</span>
+              <span class="preset-name">Chatwork</span>
+            </button>
+            <button class="preset-service-btn" data-preset-id="discord" data-preset-name="Discord"
+              data-preset-url="https://discord.com/app" data-preset-icon="🎮">
+              <span class="preset-icon">🎮</span>
+              <span class="preset-name">Discord</span>
+            </button>
+          </div>
+
+          <div class="onboarding-divider">
+            <div class="divider-line"></div>
+            <span>または</span>
+            <div class="divider-line"></div>
+          </div>
+
+          <p class="custom-service-hint">その他のWebサービスや独自のURLを追加することもできます。</p>
+          <button id="onboarding-add-service-btn" class="secondary-btn">URLを入力して追加する</button>
         </div>
       </div>
     </main>
 
     <!-- L3: AIコンパニオン (AI WebView managed by Tauri backend) -->
     <aside id="ai-companion" class="hidden">
-      <div id="resize-handle" title="ドラッグして幅を変更" tabindex="0" role="separator" aria-orientation="vertical" aria-label="サイドバーの幅を変更"></div>
+      <div id="resize-handle" title="ドラッグして幅を変更" tabindex="0" role="separator" aria-orientation="vertical"
+        aria-label="サイドバーの幅を変更"></div>
       <div id="ai-header" data-tauri-drag-region>
         <div id="ai-selector">
           <button id="ai-selector-btn" title="AIを切り替え">
@@ -94,7 +133,7 @@
   <div id="settings-modal" class="modal hidden">
     <div class="modal-content">
       <h2>設定</h2>
-      
+
       <div class="settings-section">
         <h3>外観</h3>
         <div class="form-group">
@@ -179,4 +218,5 @@
 
   <script type="module" src="renderer.js"></script>
 </body>
+
 </html>

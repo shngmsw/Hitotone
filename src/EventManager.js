@@ -90,6 +90,33 @@ export class EventManager {
       });
     }
 
+    document.querySelectorAll('.preset-service-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const name = btn.dataset.presetName;
+        const url = btn.dataset.presetUrl;
+        const icon = btn.dataset.presetIcon;
+        btn.disabled = true;
+
+        this.hitotone.services = await invoke('add_service', {
+          service: { id: '', name, url, icon, enabled: true }
+        });
+        this.hitotone.serviceDockManager.render();
+
+        const newService = this.hitotone.services[this.hitotone.services.length - 1];
+        if (newService) {
+          await invoke('create_service_webview', {
+            serviceId: newService.id,
+            url: newService.url
+          });
+
+          const onboarding = document.getElementById('onboarding-screen');
+          if (onboarding) this.hitotone.hideModal(onboarding);
+          await this.hitotone.webViewManager.switchService(newService.id);
+        }
+        btn.disabled = false;
+      });
+    });
+
     const cancelAddBtn = document.getElementById('cancel-add-btn');
     if (cancelAddBtn) {
       cancelAddBtn.addEventListener('click', () => {
