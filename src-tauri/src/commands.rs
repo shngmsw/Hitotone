@@ -300,19 +300,18 @@ pub fn window_is_maximized(app: AppHandle) -> bool {
 // ========================================
 
 #[tauri::command]
-pub fn create_service_webview(
+pub async fn create_service_webview(
     app: AppHandle,
-    state: State<Mutex<AppState>>,
     service_id: String,
     url: String,
 ) -> Result<(), String> {
     let label = format!("service-{}", service_id);
 
-    // If webview window already exists (created in setup), just navigate it
     if let Some(ww) = app.get_webview_window(&label) {
         if let Ok(parsed_url) = url.parse::<url::Url>() {
             let _ = ww.navigate(parsed_url);
         }
+        let state = app.state::<Mutex<AppState>>();
         let mut s = state.lock().unwrap();
         if !s.created_webview_labels.contains(&label) {
             s.created_webview_labels.push(label);
@@ -320,11 +319,50 @@ pub fn create_service_webview(
         return Ok(());
     }
 
-    // Window doesn't exist yet (dynamically added service)
-    // Cannot create WebviewWindow from command thread (deadlocks on Windows)
-    // Instead, emit an event so the app can be restarted or handle it gracefully
-    println!("[create_service_webview] Window {} not found - dynamic creation not supported, requires app restart", label);
-    Err(format!("Service webview '{}' was not created at startup. Please restart the app to load new services.", label))
+    let layout = {
+        let state = app.state::<Mutex<AppState>>();
+        let s = state.lock().unwrap();
+        if let Some(main_ww) = app.get_webview_window("main") {
+            crate::webview_manager::get_layout_params(&main_ww, &s)
+        } else {
+            None
+        }
+    };
+
+    if let Some(l) = layout {
+        let (tx, rx) = tokio::sync::oneshot::channel();
+        let app_clone = app.clone();
+        let label_clone = label.clone();
+        
+        app.run_on_main_thread(move || {
+            let res = if let Some(main_ww) = app_clone.get_webview_window("main") {
+                match crate::webview_manager::create_service_webview_window(
+                    &app_clone,
+                    &main_ww,
+                    &label_clone,
+                    &url,
+                    &l,
+                ) {
+                    Ok(_) => Ok(()),
+                    Err(e) => Err(e),
+                }
+            } else {
+                Err("Main window not found".into())
+            };
+            let _ = tx.send(res);
+        }).map_err(|e| e.to_string())?;
+        
+        rx.await.map_err(|e| e.to_string())??;
+        
+        let state = app.state::<Mutex<AppState>>();
+        let mut s = state.lock().unwrap();
+        if !s.created_webview_labels.contains(&label) {
+            s.created_webview_labels.push(label);
+        }
+        Ok(())
+    } else {
+        Err("Failed to compute layout".into())
+    }
 }
 
 #[tauri::command]
@@ -444,34 +482,69 @@ pub fn restore_child_webviews(app: AppHandle, state: State<Mutex<AppState>>) {
 }
 
 #[tauri::command]
-pub fn create_ai_webview(
+pub async fn create_ai_webview(
     app: AppHandle,
-    state: State<Mutex<AppState>>,
     url: String,
 ) -> Result<(), String> {
-    // AI webview should already be created in setup()
     if let Some(ww) = app.get_webview_window("ai-webview") {
         if let Ok(parsed_url) = url.parse::<url::Url>() {
             let _ = ww.navigate(parsed_url);
         }
+        let state = app.state::<Mutex<AppState>>();
         let mut s = state.lock().unwrap();
         s.ai_webview_created = true;
         return Ok(());
     }
 
-    // Cannot create from command thread (deadlocks on Windows)
-    println!("[create_ai_webview] AI webview not found - requires app restart");
-    Err("AI webview was not created at startup. Please restart the app.".to_string())
+    let layout = {
+        let state = app.state::<Mutex<AppState>>();
+        let s = state.lock().unwrap();
+        if let Some(main_ww) = app.get_webview_window("main") {
+            crate::webview_manager::get_layout_params(&main_ww, &s)
+        } else {
+            None
+        }
+    };
+
+    if let Some(l) = layout {
+        let (tx, rx) = tokio::sync::oneshot::channel();
+        let app_clone = app.clone();
+        
+        app.run_on_main_thread(move || {
+            let res = if let Some(main_ww) = app_clone.get_webview_window("main") {
+                match crate::webview_manager::create_ai_webview_window(
+                    &app_clone,
+                    &main_ww,
+                    &url,
+                    &l,
+                ) {
+                    Ok(_) => Ok(()),
+                    Err(e) => Err(e),
+                }
+            } else {
+                Err("Main window not found".into())
+            };
+            let _ = tx.send(res);
+        }).map_err(|e| e.to_string())?;
+        
+        rx.await.map_err(|e| e.to_string())??;
+        
+        let state = app.state::<Mutex<AppState>>();
+        let mut s = state.lock().unwrap();
+        s.ai_webview_created = true;
+        Ok(())
+    } else {
+        Err("Failed to compute layout".into())
+    }
 }
 
 #[tauri::command]
-pub fn setup_ai_webview(
+pub async fn setup_ai_webview(
     app: AppHandle,
-    state: State<Mutex<AppState>>,
     url: String,
     _width: u32,
 ) -> Result<(), String> {
-    create_ai_webview(app, state, url)
+    create_ai_webview(app, url).await
 }
 
 #[tauri::command]
