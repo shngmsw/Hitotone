@@ -18,13 +18,11 @@ const CHROME_USER_AGENT: &str = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537
 /// navigator.userAgentData (Client Hints API) がないと Slack 等に弾かれるため追加する。
 const BROWSER_SPOOF_SCRIPT: &str = r#"
 (function() {
-  // Override navigator.userAgent
+  // === navigator 偽装 (DOM 不要、最優先で実行) ===
   Object.defineProperty(navigator, 'userAgent', {
     get: function() { return 'USER_AGENT_PLACEHOLDER'; },
     configurable: true
   });
-
-  // Override navigator.userAgentData (Client Hints API)
   Object.defineProperty(navigator, 'userAgentData', {
     get: function() {
       return {
@@ -37,42 +35,91 @@ const BROWSER_SPOOF_SCRIPT: &str = r#"
         platform: 'PLATFORM_PLACEHOLDER',
         getHighEntropyValues: function(hints) {
           return Promise.resolve({
-            brands: this.brands,
-            mobile: false,
-            platform: 'PLATFORM_PLACEHOLDER',
-            platformVersion: '15.0.0',
-            architecture: 'x86',
-            bitness: '64',
+            brands: this.brands, mobile: false,
+            platform: 'PLATFORM_PLACEHOLDER', platformVersion: '15.0.0',
+            architecture: 'x86', bitness: '64',
             fullVersionList: [
               { brand: 'Chromium', version: '134.0.6998.89' },
               { brand: 'Google Chrome', version: '134.0.6998.89' },
               { brand: 'Not:A-Brand', version: '99.0.0.0' }
             ],
-            model: '',
-            uaFullVersion: '134.0.6998.89'
+            model: '', uaFullVersion: '134.0.6998.89'
           });
         }
       };
     },
     configurable: true
   });
-
-  // Override navigator.vendor
   Object.defineProperty(navigator, 'vendor', {
     get: function() { return 'Google Inc.'; },
     configurable: true
   });
-
-  // Override navigator.platform if needed
   Object.defineProperty(navigator, 'appVersion', {
     get: function() { return '5.0 (PLATFORM_UA_PLACEHOLDER)'; },
     configurable: true
   });
+
+  // === window.open を同じウィンドウ内ナビゲーションに変換 (DOM 不要) ===
+  var _origOpen = window.open;
+  window.open = function(url, target, features) {
+    if (url && url !== '' && url !== 'about:blank') {
+      try {
+        var fullUrl = new URL(url, window.location.href).href;
+        console.log('[window.open -> navigate]', fullUrl);
+        window.location.href = fullUrl;
+      } catch(e) {
+        console.error('[window.open] error:', e);
+      }
+      return null;
+    }
+    return _origOpen ? _origOpen.call(window, url, target, features) : null;
+  };
+
+  // === DOM 準備後に実行する処理 ===
+  function onReady() {
+    // target="_blank" リンクを同じウィンドウで開く
+    document.addEventListener('click', function(e) {
+      var link = e.target.closest && e.target.closest('a[target="_blank"], a[target="new"]');
+      if (link && link.href) {
+        e.preventDefault();
+        e.stopPropagation();
+        console.log('[target=_blank -> navigate]', link.href);
+        window.location.href = link.href;
+      }
+    }, true);
+
+    // 非推奨バナーを非表示にする CSS
+    var style = document.createElement('style');
+    style.textContent = [
+      '[data-qa="browser_deprecation_banner"] { display: none !important; }',
+      '.p-browser_deprecation_banner { display: none !important; }',
+      '.c-banner--warning { display: none !important; }',
+      '[data-unsupported-browser] { display: none !important; }',
+      '.unsupported-browser-banner { display: none !important; }'
+    ].join('\n');
+    (document.head || document.documentElement).appendChild(style);
+
+    // SPA 対応: DOM 更新時にもバナーを消す
+    if (document.body) {
+      var observer = new MutationObserver(function() {
+        document.querySelectorAll(
+          '[data-qa="browser_deprecation_banner"], .p-browser_deprecation_banner, .c-banner--warning'
+        ).forEach(function(el) { el.remove(); });
+      });
+      observer.observe(document.body, { childList: true, subtree: true });
+    }
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', onReady);
+  } else {
+    onReady();
+  }
 })();
 "#;
 
 /// プラットフォームに合わせて JS スクリプト内のプレースホルダを置換
-fn get_browser_spoof_script() -> String {
+pub fn browser_spoof_script() -> String {
     #[cfg(target_os = "macos")]
     let (platform, platform_ua) = ("macOS", "Macintosh; Intel Mac OS X 10_15_7");
     #[cfg(target_os = "windows")]
@@ -84,6 +131,11 @@ fn get_browser_spoof_script() -> String {
         .replace("USER_AGENT_PLACEHOLDER", CHROME_USER_AGENT)
         .replace("PLATFORM_PLACEHOLDER", platform)
         .replace("PLATFORM_UA_PLACEHOLDER", platform_ua)
+}
+
+/// Chrome UA 文字列を返す
+pub fn chrome_user_agent() -> &'static str {
+    CHROME_USER_AGENT
 }
 
 pub struct LayoutParams {
@@ -151,14 +203,14 @@ pub fn get_layout_params(main_ww: &tauri::WebviewWindow, state: &AppState) -> Op
     })
 }
 
-/// OAuth/認証関連のURLかどうかを判定する
+/// 外部 OAuth プロバイダの URL かどうかを判定する。
+/// Slack 自身の /signin, /sso, /oauth 等はポップアップにせず WebView 内で処理させる。
+/// ポップアップを開くのは Google, Microsoft 等の外部認証画面のみ。
 pub fn is_auth_url(url: &str) -> bool {
     url.contains("accounts.google.com")
         || url.contains("login.microsoftonline.com")
         || url.contains("github.com/login/oauth")
-        || url.contains("slack.com/sso")
-        || url.contains("slack.com/oauth")
-        || (url.contains("slack.com") && url.contains("/signin/"))
+        || url.contains("appleid.apple.com/auth")
 }
 
 /// Create a service WebviewWindow dynamically.
@@ -170,10 +222,6 @@ pub fn create_service_webview_window(
     layout: &LayoutParams,
 ) -> Result<tauri::WebviewWindow, String> {
     let parsed_url: url::Url = url.parse().map_err(|e: url::ParseError| e.to_string())?;
-    let app_for_nav = app.clone();
-
-    let source_label = label.to_string();
-    let target_domain = parsed_url.host_str().unwrap_or("").to_string();
 
     // Create hidden, then SetParent, then position with relative coords
     let ww = tauri::WebviewWindowBuilder::new(
@@ -187,25 +235,10 @@ pub fn create_service_webview_window(
     .skip_taskbar(true)
     .visible(false)
     .user_agent(CHROME_USER_AGENT)
-    .initialization_script(&get_browser_spoof_script())
+    .initialization_script(&browser_spoof_script())
     .on_navigation(move |nav_url| {
-        let url_str = nav_url.as_str();
-        println!("[service-nav] {}", url_str);
-        // OAuth系URLへのナビゲーションを捕捉してポップアップとして開く
-        if is_auth_url(url_str) {
-            let owned = url_str.to_string();
-            let app2 = app_for_nav.clone();
-            let s_label = source_label.clone();
-            let t_domain = target_domain.clone();
-            
-            std::thread::spawn(move || {
-                // 少し待ってからポップアップを開く（WebView2のナビゲーションキャンセル後に実行）
-                std::thread::sleep(std::time::Duration::from_millis(50));
-                crate::commands::open_popup_window_internal(&app2, owned, Some(s_label), Some(t_domain));
-            });
-            return false; // ナビゲーションをキャンセル
-        }
-        true // それ以外は通常ナビゲーション
+        println!("[service-nav] {}", nav_url.as_str());
+        true // すべてのナビゲーションをそのまま許可（ポップアップ分離はしない）
     })
     .build()
     .map_err(|e| e.to_string())?;
@@ -250,7 +283,7 @@ pub fn create_ai_webview_window(
     .skip_taskbar(true)
     .visible(false)
     .user_agent(CHROME_USER_AGENT)
-    .initialization_script(&get_browser_spoof_script())
+    .initialization_script(&browser_spoof_script())
     .build()
     .map_err(|e| e.to_string())?;
 

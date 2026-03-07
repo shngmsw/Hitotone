@@ -675,6 +675,8 @@ pub fn open_popup_window_internal(
     .inner_size(520.0, 750.0)
     .center()
     .decorations(true)
+    .user_agent(crate::webview_manager::chrome_user_agent())
+    .initialization_script(&crate::webview_manager::browser_spoof_script())
     .on_navigation(move |nav_url| {
         let url_str = nav_url.as_str();
         println!("[popup-auth] navigating to: {}", url_str);
