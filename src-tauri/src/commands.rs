@@ -607,10 +607,10 @@ pub fn open_popup_window_internal(app: &tauri::AppHandle, url: String) {
     .build();
 
     match result {
-        Ok(ref ww) => {
+        Ok(ref _ww) => {
             println!("[open_popup_window] Popup opened successfully");
             #[cfg(debug_assertions)]
-            ww.open_devtools();
+            _ww.open_devtools();
         }
         Err(ref e) => println!("[open_popup_window] Failed to open popup: {}", e),
     }

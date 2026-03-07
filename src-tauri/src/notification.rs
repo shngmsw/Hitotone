@@ -4,6 +4,7 @@ use tauri::{Emitter, Manager};
 
 /// Generate the notification detection JavaScript that will be injected into service webviews.
 /// This script monitors document.title changes and sends notification count updates.
+#[allow(dead_code)]
 pub fn get_notification_script(service_id: &str) -> String {
     format!(
         r#"(function() {{
@@ -128,6 +129,7 @@ pub fn start_title_polling(app_handle: tauri::AppHandle) {
 }
 
 /// Parse notification count from a title string
+#[allow(dead_code)]
 pub fn parse_title_count(title: &str) -> u32 {
     if let Some(caps) = regex_lite_match(title, r"\((\d+)\)") {
         return caps.min(9999);
@@ -144,6 +146,7 @@ pub fn parse_title_count(title: &str) -> u32 {
     0
 }
 
+#[allow(dead_code)]
 fn regex_lite_match(text: &str, pattern: &str) -> Option<u32> {
     match pattern {
         r"\((\d+)\)" => {
@@ -170,6 +173,7 @@ fn regex_lite_match(text: &str, pattern: &str) -> Option<u32> {
     }
 }
 
+#[allow(dead_code)]
 fn extract_number_before(text: &str, keyword: &str) -> Option<u32> {
     let lower = text.to_lowercase();
     if let Some(pos) = lower.find(keyword) {
