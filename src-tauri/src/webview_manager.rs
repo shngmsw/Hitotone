@@ -4,10 +4,87 @@ use tauri::Manager;
 const DOCK_WIDTH: f64 = 64.0;
 const HEADER_HEIGHT: f64 = 32.0;
 
-/// Chrome-compatible User-Agent string.
-/// macOS の WKWebView のデフォルト UA だと Slack や Google Chat に
-/// 「サポート対象外ブラウザ」と弾かれるため、Chrome の UA を偽装する。
+/// Chrome-compatible User-Agent strings (platform-specific).
+/// Slack や Google Chat は UA ヘッダだけでなく JS の navigator API でもブラウザを判定する。
+/// プラットフォームに合った Chrome UA を設定し、初期化スクリプトで navigator.userAgentData も偽装する。
+#[cfg(target_os = "macos")]
 const CHROME_USER_AGENT: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36";
+#[cfg(target_os = "windows")]
+const CHROME_USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36";
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+const CHROME_USER_AGENT: &str = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36";
+
+/// Chrome を完全に偽装するための JS 初期化スクリプト。
+/// navigator.userAgentData (Client Hints API) がないと Slack 等に弾かれるため追加する。
+const BROWSER_SPOOF_SCRIPT: &str = r#"
+(function() {
+  // Override navigator.userAgent
+  Object.defineProperty(navigator, 'userAgent', {
+    get: function() { return 'USER_AGENT_PLACEHOLDER'; },
+    configurable: true
+  });
+
+  // Override navigator.userAgentData (Client Hints API)
+  Object.defineProperty(navigator, 'userAgentData', {
+    get: function() {
+      return {
+        brands: [
+          { brand: 'Chromium', version: '134' },
+          { brand: 'Google Chrome', version: '134' },
+          { brand: 'Not:A-Brand', version: '99' }
+        ],
+        mobile: false,
+        platform: 'PLATFORM_PLACEHOLDER',
+        getHighEntropyValues: function(hints) {
+          return Promise.resolve({
+            brands: this.brands,
+            mobile: false,
+            platform: 'PLATFORM_PLACEHOLDER',
+            platformVersion: '15.0.0',
+            architecture: 'x86',
+            bitness: '64',
+            fullVersionList: [
+              { brand: 'Chromium', version: '134.0.6998.89' },
+              { brand: 'Google Chrome', version: '134.0.6998.89' },
+              { brand: 'Not:A-Brand', version: '99.0.0.0' }
+            ],
+            model: '',
+            uaFullVersion: '134.0.6998.89'
+          });
+        }
+      };
+    },
+    configurable: true
+  });
+
+  // Override navigator.vendor
+  Object.defineProperty(navigator, 'vendor', {
+    get: function() { return 'Google Inc.'; },
+    configurable: true
+  });
+
+  // Override navigator.platform if needed
+  Object.defineProperty(navigator, 'appVersion', {
+    get: function() { return '5.0 (PLATFORM_UA_PLACEHOLDER)'; },
+    configurable: true
+  });
+})();
+"#;
+
+/// プラットフォームに合わせて JS スクリプト内のプレースホルダを置換
+fn get_browser_spoof_script() -> String {
+    #[cfg(target_os = "macos")]
+    let (platform, platform_ua) = ("macOS", "Macintosh; Intel Mac OS X 10_15_7");
+    #[cfg(target_os = "windows")]
+    let (platform, platform_ua) = ("Windows", "Windows NT 10.0; Win64; x64");
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    let (platform, platform_ua) = ("Linux", "X11; Linux x86_64");
+
+    BROWSER_SPOOF_SCRIPT
+        .replace("USER_AGENT_PLACEHOLDER", CHROME_USER_AGENT)
+        .replace("PLATFORM_PLACEHOLDER", platform)
+        .replace("PLATFORM_UA_PLACEHOLDER", platform_ua)
+}
 
 pub struct LayoutParams {
     pub service_x: f64,
@@ -110,6 +187,7 @@ pub fn create_service_webview_window(
     .skip_taskbar(true)
     .visible(false)
     .user_agent(CHROME_USER_AGENT)
+    .initialization_script(&get_browser_spoof_script())
     .on_navigation(move |nav_url| {
         let url_str = nav_url.as_str();
         println!("[service-nav] {}", url_str);
@@ -172,6 +250,7 @@ pub fn create_ai_webview_window(
     .skip_taskbar(true)
     .visible(false)
     .user_agent(CHROME_USER_AGENT)
+    .initialization_script(&get_browser_spoof_script())
     .build()
     .map_err(|e| e.to_string())?;
 
