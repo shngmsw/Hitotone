@@ -4,6 +4,11 @@ use tauri::Manager;
 const DOCK_WIDTH: f64 = 64.0;
 const HEADER_HEIGHT: f64 = 32.0;
 
+/// Chrome-compatible User-Agent string.
+/// macOS の WKWebView のデフォルト UA だと Slack や Google Chat に
+/// 「サポート対象外ブラウザ」と弾かれるため、Chrome の UA を偽装する。
+const CHROME_USER_AGENT: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+
 pub struct LayoutParams {
     pub service_x: f64,
     pub service_y: f64,
@@ -104,6 +109,7 @@ pub fn create_service_webview_window(
     .decorations(false)
     .skip_taskbar(true)
     .visible(false)
+    .user_agent(CHROME_USER_AGENT)
     .on_navigation(move |nav_url| {
         let url_str = nav_url.as_str();
         println!("[service-nav] {}", url_str);
@@ -165,6 +171,7 @@ pub fn create_ai_webview_window(
     .decorations(false)
     .skip_taskbar(true)
     .visible(false)
+    .user_agent(CHROME_USER_AGENT)
     .build()
     .map_err(|e| e.to_string())?;
 
