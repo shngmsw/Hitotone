@@ -451,8 +451,18 @@ body.platform-darwin #service-dock {
   filter: brightness(1.1);
 }
 
-.primary-btn:active {
+.primary-btn:active:not(:disabled) {
   transform: scale(0.98);
+}
+
+.primary-btn:disabled {
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  cursor: not-allowed;
+  transform: none;
+  filter: none;
+  border: 1px solid var(--border-color);
+  box-shadow: none;
 }
 
 .preset-services-grid {
@@ -460,8 +470,12 @@ body.platform-darwin #service-dock {
   flex-wrap: wrap;
   justify-content: center;
   gap: var(--space-md);
-  margin-bottom: var(--space-2xl);
+  margin-bottom: var(--space-xl);
   max-width: 600px;
+}
+
+.preset-actions {
+  margin-bottom: var(--space-2xl);
 }
 
 .preset-service-btn {
@@ -478,6 +492,7 @@ body.platform-darwin #service-dock {
   cursor: pointer;
   transition: all var(--transition-fast);
   color: var(--text-primary);
+  position: relative;
 }
 
 .preset-service-btn:hover {
@@ -485,6 +500,22 @@ body.platform-darwin #service-dock {
   border-color: var(--accent);
   transform: translateY(-2px);
   box-shadow: var(--shadow-sm);
+}
+
+.preset-service-btn.selected {
+  background: var(--bg-hover);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+.preset-service-btn.selected::after {
+  content: '✓';
+  position: absolute;
+  top: 4px;
+  right: 8px;
+  color: var(--accent);
+  font-size: 14px;
+  font-weight: bold;
 }
 
 .preset-icon {

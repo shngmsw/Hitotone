@@ -90,32 +90,62 @@ export class EventManager {
       });
     }
 
-    document.querySelectorAll('.preset-service-btn').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        const name = btn.dataset.presetName;
-        const url = btn.dataset.presetUrl;
-        const icon = btn.dataset.presetIcon;
-        btn.disabled = true;
+    const presetBtns = document.querySelectorAll('.preset-service-btn');
+    const submitPresetsBtn = document.getElementById('onboarding-submit-presets-btn');
 
-        this.hitotone.services = await invoke('add_service', {
-          service: { id: '', name, url, icon, enabled: true }
-        });
-        this.hitotone.serviceDockManager.render();
-
-        const newService = this.hitotone.services[this.hitotone.services.length - 1];
-        if (newService) {
-          await invoke('create_service_webview', {
-            serviceId: newService.id,
-            url: newService.url
-          });
-
-          const onboarding = document.getElementById('onboarding-screen');
-          if (onboarding) this.hitotone.hideModal(onboarding);
-          await this.hitotone.webViewManager.switchService(newService.id);
+    presetBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        btn.classList.toggle('selected');
+        if (submitPresetsBtn) {
+          const anySelected = Array.from(presetBtns).some(b => b.classList.contains('selected'));
+          submitPresetsBtn.disabled = !anySelected;
         }
-        btn.disabled = false;
       });
     });
+
+    if (submitPresetsBtn) {
+      submitPresetsBtn.addEventListener('click', async () => {
+        submitPresetsBtn.disabled = true;
+        const selectedBtns = Array.from(presetBtns).filter(b => b.classList.contains('selected'));
+        if (selectedBtns.length === 0) return;
+
+        let firstNewServiceId = null;
+
+        for (const btn of selectedBtns) {
+          const name = btn.dataset.presetName;
+          const url = btn.dataset.presetUrl;
+          const icon = btn.dataset.presetIcon;
+
+          this.hitotone.services = await invoke('add_service', {
+            service: { id: '', name, url, icon, enabled: true }
+          });
+
+          const newService = this.hitotone.services[this.hitotone.services.length - 1];
+          if (newService) {
+            await invoke('create_service_webview', {
+              serviceId: newService.id,
+              url: newService.url
+            });
+            if (!firstNewServiceId) {
+              firstNewServiceId = newService.id;
+            }
+          }
+        }
+
+        this.hitotone.serviceDockManager.render();
+
+        const onboarding = document.getElementById('onboarding-screen');
+        if (onboarding) this.hitotone.hideModal(onboarding);
+
+        if (firstNewServiceId) {
+          await this.hitotone.webViewManager.switchService(firstNewServiceId);
+        }
+
+        // Reset selections
+        presetBtns.forEach(b => b.classList.remove('selected'));
+        submitPresetsBtn.disabled = true;
+      });
+    }
 
     const cancelAddBtn = document.getElementById('cancel-add-btn');
     if (cancelAddBtn) {
