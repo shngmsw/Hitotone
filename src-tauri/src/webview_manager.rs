@@ -214,6 +214,45 @@ pub fn is_auth_url(url: &str) -> bool {
         || url.contains("appleid.apple.com/auth")
 }
 
+/// 同じサービスのドメイン内での移動（ログイン時のリダイレクト等）かどうかを判定する。
+pub fn is_internal_navigation(nav_url: &url::Url, initial_url: &url::Url) -> bool {
+    let nav_host = match nav_url.host_str() {
+        Some(h) => h,
+        None => return true, // スキームがない場合などは許可
+    };
+    let initial_host = match initial_url.host_str() {
+        Some(h) => h,
+        None => return true,
+    };
+
+    if nav_host == initial_host {
+        return true;
+    }
+
+    // サービスごとに許可するドメイングループ
+    let internal_domain_suffixes = [
+        "slack.com",
+        "google.com",
+        "google.co.jp",
+        "discord.com",
+        "microsoft.com",
+        "microsoftonline.com",
+        "live.com",
+        "chatwork.com",
+    ];
+
+    for suffix in internal_domain_suffixes {
+        let is_nav_match = nav_host == suffix || nav_host.ends_with(&format!(".{}", suffix));
+        let is_initial_match = initial_host == suffix || initial_host.ends_with(&format!(".{}", suffix));
+        
+        if is_nav_match && is_initial_match {
+            return true;
+        }
+    }
+
+    false
+}
+
 /// Create a service WebviewWindow dynamically.
 pub fn create_service_webview_window(
     app: &tauri::AppHandle,
@@ -242,8 +281,11 @@ pub fn create_service_webview_window(
         let initial_url = parsed_url.clone();
         move |nav_url| {
             println!("[service-nav] {}", nav_url.as_str());
-            // ドメインが異なり、かつ認証用URLでもない場合は既定のブラウザで開く
-            if nav_url.host_str() != initial_url.host_str() && !is_auth_url(nav_url.as_str()) {
+            // ドメインが異なり、かつ同じサービス内のリダイレクトでもなく、認証用URLでもない場合は既定のブラウザで開く
+            let is_internal = is_internal_navigation(nav_url, &initial_url);
+            let is_auth = is_auth_url(nav_url.as_str());
+
+            if !is_internal && !is_auth {
                 println!("[service-nav] Opening external link in browser: {}", nav_url.as_str());
                 let _ = app_handle.shell().open(nav_url.as_str(), None);
                 return false; // アプリ内でのナビゲーションをキャンセル
@@ -300,7 +342,10 @@ pub fn create_ai_webview_window(
         let initial_url = parsed_url.clone();
         move |nav_url| {
             println!("[ai-nav] {}", nav_url.as_str());
-            if nav_url.host_str() != initial_url.host_str() && !is_auth_url(nav_url.as_str()) {
+            let is_internal = is_internal_navigation(nav_url, &initial_url);
+            let is_auth = is_auth_url(nav_url.as_str());
+
+            if !is_internal && !is_auth {
                 println!("[ai-nav] Opening external link in browser: {}", nav_url.as_str());
                 let _ = app_handle.shell().open(nav_url.as_str(), None);
                 return false;
