@@ -53,7 +53,7 @@ export class SettingsManager {
 
     list.innerHTML = '';
 
-    this.hitotone.services.forEach(service => {
+    this.hitotone.services.forEach((service) => {
       const item = document.createElement('div');
       item.className = 'service-setting-item';
       item.innerHTML = `
@@ -73,7 +73,7 @@ export class SettingsManager {
     });
 
     // 編集ボタンのイベント
-    list.querySelectorAll('.edit-btn').forEach(btn => {
+    list.querySelectorAll('.edit-btn').forEach((btn) => {
       btn.addEventListener('click', () => {
         const serviceId = btn.dataset.serviceId;
         this.openEditService(serviceId);
@@ -81,7 +81,7 @@ export class SettingsManager {
     });
 
     // 削除ボタンのイベント
-    list.querySelectorAll('.delete-btn').forEach(btn => {
+    list.querySelectorAll('.delete-btn').forEach((btn) => {
       btn.addEventListener('click', async () => {
         const serviceId = btn.dataset.serviceId;
         if (confirm('このサービスを削除しますか？')) {
@@ -112,7 +112,7 @@ export class SettingsManager {
   }
 
   openEditService(serviceId) {
-    const service = this.hitotone.services.find(s => s.id === serviceId);
+    const service = this.hitotone.services.find((s) => s.id === serviceId);
     if (!service) return;
 
     const idInput = document.getElementById('edit-service-id');

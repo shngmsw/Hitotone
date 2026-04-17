@@ -16,11 +16,11 @@ export class WebViewManager {
   }
 
   async switchService(serviceId) {
-    const service = this.hitotone.services.find(s => s.id === serviceId);
+    const service = this.hitotone.services.find((s) => s.id === serviceId);
     if (!service) return;
 
     // 前のアクティブを非アクティブに
-    document.querySelectorAll('.service-item').forEach(item => {
+    document.querySelectorAll('.service-item').forEach((item) => {
       item.classList.remove('active');
     });
 
@@ -48,9 +48,9 @@ export class WebViewManager {
     if (this.hitotone.activeServiceId === 'slack' && url && url.includes('app.slack.com/client/')) {
       const services = await invoke('update_service', {
         service: {
-          ...this.hitotone.services.find(s => s.id === 'slack'),
-          url: url
-        }
+          ...this.hitotone.services.find((s) => s.id === 'slack'),
+          url: url,
+        },
       });
       this.hitotone.services = services;
     }

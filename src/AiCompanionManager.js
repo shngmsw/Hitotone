@@ -36,7 +36,7 @@ export class AiCompanionManager {
       if (this.hitotone.activeAiService) {
         await invoke('setup_ai_webview', {
           url: this.hitotone.activeAiService.url,
-          width: width || 400
+          width: width || 400,
         });
       }
     } else {
@@ -57,7 +57,7 @@ export class AiCompanionManager {
       // AI WebViewがまだ作成されていない場合は作成
       try {
         await invoke('create_ai_webview', {
-          url: this.hitotone.activeAiService.url
+          url: this.hitotone.activeAiService.url,
         });
       } catch (_) {
         // Already created
@@ -79,21 +79,26 @@ export class AiCompanionManager {
     const list = document.getElementById('ai-dropdown-list');
     if (!list) return;
 
-    list.innerHTML = this.hitotone.aiServices.map(service => {
-      const isActive = this.hitotone.activeAiService && service.id === this.hitotone.activeAiService.id;
-      const escapedId = this.escapeHtml(service.id);
-      const escapedName = this.escapeHtml(service.name);
-      const deleteBtn = service.isDefault ? '' : `<button class="delete-ai-btn" data-id="${escapedId}" title="削除">×</button>`;
-      return `
+    list.innerHTML = this.hitotone.aiServices
+      .map((service) => {
+        const isActive =
+          this.hitotone.activeAiService && service.id === this.hitotone.activeAiService.id;
+        const escapedId = this.escapeHtml(service.id);
+        const escapedName = this.escapeHtml(service.name);
+        const deleteBtn = service.isDefault
+          ? ''
+          : `<button class="delete-ai-btn" data-id="${escapedId}" title="削除">×</button>`;
+        return `
         <div class="ai-dropdown-item ${isActive ? 'active' : ''}" data-id="${escapedId}">
           <span>${escapedName}</span>
           ${deleteBtn}
         </div>
       `;
-    }).join('');
+      })
+      .join('');
 
     // クリックイベントを設定
-    list.querySelectorAll('.ai-dropdown-item').forEach(item => {
+    list.querySelectorAll('.ai-dropdown-item').forEach((item) => {
       item.addEventListener('click', (e) => {
         if (e.target.classList.contains('delete-ai-btn')) return;
         this.switchService(item.dataset.id);
@@ -101,7 +106,7 @@ export class AiCompanionManager {
     });
 
     // 削除ボタンのイベント
-    list.querySelectorAll('.delete-ai-btn').forEach(btn => {
+    list.querySelectorAll('.delete-ai-btn').forEach((btn) => {
       btn.addEventListener('click', async (e) => {
         e.stopPropagation();
         await this.removeService(btn.dataset.id);
@@ -110,7 +115,7 @@ export class AiCompanionManager {
   }
 
   async switchService(serviceId) {
-    const service = this.hitotone.aiServices.find(s => s.id === serviceId);
+    const service = this.hitotone.aiServices.find((s) => s.id === serviceId);
     if (!service) return;
 
     // Rust側でAIサービスを切り替え（WebViewのナビゲーションも含む）
@@ -188,7 +193,7 @@ export class AiCompanionManager {
         document.body.style.userSelect = '';
 
         const currentWidth = aiCompanion.offsetWidth;
-        invoke('resize_ai_webview', { width: currentWidth }).catch(err => {
+        invoke('resize_ai_webview', { width: currentWidth }).catch((err) => {
           console.warn('AI幅の保存に失敗しました:', err);
         });
       }
@@ -217,7 +222,7 @@ export class AiCompanionManager {
       if (aiCompanion.classList.contains('hidden')) return;
 
       const step = 10;
-      let currentWidth = aiCompanion.offsetWidth;
+      const currentWidth = aiCompanion.offsetWidth;
       let newWidth = currentWidth;
 
       if (e.key === 'ArrowLeft') {
@@ -230,7 +235,7 @@ export class AiCompanionManager {
 
       if (newWidth !== currentWidth) {
         aiCompanion.style.width = `${newWidth}px`;
-        invoke('resize_ai_webview', { width: newWidth }).catch(err => {
+        invoke('resize_ai_webview', { width: newWidth }).catch((err) => {
           console.warn('AI幅の保存に失敗しました:', err);
         });
       }

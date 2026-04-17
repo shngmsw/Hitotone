@@ -16,41 +16,45 @@ export class ServiceDockManager {
 
     serviceList.innerHTML = '';
 
-    this.hitotone.services.filter(s => s.enabled).forEach(service => {
-      const item = document.createElement('div');
-      item.className = 'service-item';
-      item.dataset.serviceId = service.id;
-      item.title = service.name;
-      item.draggable = true;
+    this.hitotone.services
+      .filter((s) => s.enabled)
+      .forEach((service) => {
+        const item = document.createElement('div');
+        item.className = 'service-item';
+        item.dataset.serviceId = service.id;
+        item.title = service.name;
+        item.draggable = true;
 
-      // Use favicon if available, otherwise use emoji
-      if (service.faviconUrl || service.favicon_url) {
-        const img = document.createElement('img');
-        img.className = 'service-favicon';
-        img.src = service.faviconUrl || service.favicon_url;
-        img.alt = service.name;
-        item.appendChild(img);
-      } else {
-        item.textContent = service.icon;
-      }
+        // Use favicon if available, otherwise use emoji
+        if (service.faviconUrl || service.favicon_url) {
+          const img = document.createElement('img');
+          img.className = 'service-favicon';
+          img.src = service.faviconUrl || service.favicon_url;
+          img.alt = service.name;
+          item.appendChild(img);
+        } else {
+          item.textContent = service.icon;
+        }
 
-      const badge = document.createElement('span');
-      badge.className = 'badge hidden';
-      badge.textContent = '0';
-      item.appendChild(badge);
+        const badge = document.createElement('span');
+        badge.className = 'badge hidden';
+        badge.textContent = '0';
+        item.appendChild(badge);
 
-      item.addEventListener('click', () => this.hitotone.webViewManager.switchService(service.id));
+        item.addEventListener('click', () =>
+          this.hitotone.webViewManager.switchService(service.id),
+        );
 
-      // Drag and drop event listeners
-      item.addEventListener('dragstart', (e) => this.handleDragStart(e));
-      item.addEventListener('dragover', (e) => this.handleDragOver(e));
-      item.addEventListener('drop', (e) => this.handleDrop(e));
-      item.addEventListener('dragend', (e) => this.handleDragEnd(e));
-      item.addEventListener('dragenter', (e) => this.handleDragEnter(e));
-      item.addEventListener('dragleave', (e) => this.handleDragLeave(e));
+        // Drag and drop event listeners
+        item.addEventListener('dragstart', (e) => this.handleDragStart(e));
+        item.addEventListener('dragover', (e) => this.handleDragOver(e));
+        item.addEventListener('drop', (e) => this.handleDrop(e));
+        item.addEventListener('dragend', (e) => this.handleDragEnd(e));
+        item.addEventListener('dragenter', (e) => this.handleDragEnter(e));
+        item.addEventListener('dragleave', (e) => this.handleDragLeave(e));
 
-      serviceList.appendChild(item);
-    });
+        serviceList.appendChild(item);
+      });
   }
 
   updateBadge(serviceId, count) {
@@ -71,7 +75,7 @@ export class ServiceDockManager {
     const item = document.querySelector(`.service-item[data-service-id="${serviceId}"]`);
     if (!item) return;
 
-    const service = this.hitotone.services.find(s => s.id === serviceId);
+    const service = this.hitotone.services.find((s) => s.id === serviceId);
 
     // Remove old icon (emoji or old favicon)
     const oldIcon = item.querySelector('.service-favicon') || item.firstChild;
@@ -114,7 +118,9 @@ export class ServiceDockManager {
 
     // アクティブ状態を復元
     if (this.hitotone.activeServiceId) {
-      const activeItem = document.querySelector(`.service-item[data-service-id="${this.hitotone.activeServiceId}"]`);
+      const activeItem = document.querySelector(
+        `.service-item[data-service-id="${this.hitotone.activeServiceId}"]`,
+      );
       if (activeItem) {
         activeItem.classList.add('active');
       }
@@ -177,8 +183,8 @@ export class ServiceDockManager {
       const draggedId = this.draggedElement.dataset.serviceId;
       const targetId = dropTarget.dataset.serviceId;
 
-      const draggedIndex = this.hitotone.services.findIndex(s => s.id === draggedId);
-      let targetIndex = this.hitotone.services.findIndex(s => s.id === targetId);
+      const draggedIndex = this.hitotone.services.findIndex((s) => s.id === draggedId);
+      let targetIndex = this.hitotone.services.findIndex((s) => s.id === targetId);
 
       if (draggedIndex !== -1 && targetIndex !== -1) {
         if (this.dropPosition === 'below') {
@@ -205,7 +211,7 @@ export class ServiceDockManager {
   handleDragEnd(e) {
     e.currentTarget.classList.remove('dragging');
 
-    document.querySelectorAll('.service-item').forEach(item => {
+    document.querySelectorAll('.service-item').forEach((item) => {
       item.classList.remove('drag-over-above', 'drag-over-below');
     });
 

@@ -1,13 +1,13 @@
 // Hitotone Renderer Process - Main Entry Point (Tauri v2)
 
 import { invoke } from '@tauri-apps/api/core';
+import { AiCompanionManager } from './AiCompanionManager.js';
+import { EventManager } from './EventManager.js';
 import { LoadingManager } from './LoadingManager.js';
 import { ServiceDockManager } from './ServiceDockManager.js';
-import { WebViewManager } from './WebViewManager.js';
-import { AiCompanionManager } from './AiCompanionManager.js';
 import { SettingsManager } from './SettingsManager.js';
-import { EventManager } from './EventManager.js';
 import { UpdateManager } from './UpdateManager.js';
+import { WebViewManager } from './WebViewManager.js';
 
 class Hitotone {
   constructor() {
@@ -89,7 +89,7 @@ class Hitotone {
       } else if (this.activeServiceId) {
         // ... (check validity of activeServiceId?)
         // wait, earlier if activeServiceId doesn't exist in services, fallback to services[0].
-        const hasActiveService = this.services.find(s => s.id === this.activeServiceId);
+        const hasActiveService = this.services.find((s) => s.id === this.activeServiceId);
         if (hasActiveService) {
           console.log('[Hitotone] switching to active service:', this.activeServiceId);
           await this.webViewManager.switchService(this.activeServiceId);
@@ -122,7 +122,9 @@ class Hitotone {
     modalElement.classList.add('hidden');
 
     // 他のモーダルが開いていないか確認
-    const anyOpen = Array.from(document.querySelectorAll('.modal, #onboarding-screen')).some(m => !m.classList.contains('hidden'));
+    const anyOpen = Array.from(document.querySelectorAll('.modal, #onboarding-screen')).some(
+      (m) => !m.classList.contains('hidden'),
+    );
     if (!anyOpen) {
       await invoke('restore_child_webviews');
     }

@@ -94,7 +94,7 @@ body[data-theme="aurora"] {
 html,
 body {
   height: 100%;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   background: var(--bg-gradient);
   background-attachment: fixed;
   color: var(--text-primary);
@@ -208,7 +208,8 @@ body.platform-darwin #service-dock {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: background-color var(--transition-normal),
+  transition:
+    background-color var(--transition-normal),
     transform var(--transition-fast),
     box-shadow var(--transition-normal);
   position: relative;
@@ -243,7 +244,7 @@ body.platform-darwin #service-dock {
 }
 
 .service-item.active::before {
-  content: '';
+  content: "";
   position: absolute;
   left: -8px;
   top: 50%;
@@ -257,7 +258,9 @@ body.platform-darwin #service-dock {
 /* Drag and drop styles */
 .service-item[draggable="true"] {
   cursor: grab;
-  transition: transform 0.15s ease, opacity 0.15s ease;
+  transition:
+    transform 0.15s ease,
+    opacity 0.15s ease;
 }
 
 .service-item.dragging {
@@ -268,7 +271,7 @@ body.platform-darwin #service-dock {
 
 /* ドロップインジケーター - 上 */
 .service-item.drag-over-above::before {
-  content: '';
+  content: "";
   position: absolute;
   left: 4px;
   right: 4px;
@@ -281,7 +284,7 @@ body.platform-darwin #service-dock {
 
 /* ドロップインジケーター - 下 */
 .service-item.drag-over-below::after {
-  content: '';
+  content: "";
   position: absolute;
   left: 4px;
   right: 4px;
@@ -337,7 +340,8 @@ body.platform-darwin #service-dock {
   color: var(--text-secondary);
   font-size: 16px;
   cursor: pointer;
-  transition: background-color var(--transition-normal),
+  transition:
+    background-color var(--transition-normal),
     color var(--transition-normal),
     transform var(--transition-fast);
   box-shadow: var(--shadow-sm);
@@ -443,7 +447,9 @@ body.platform-darwin #service-dock {
   border: none;
   border-radius: var(--radius-md);
   cursor: pointer;
-  transition: background-color var(--transition-fast), transform var(--transition-fast);
+  transition:
+    background-color var(--transition-fast),
+    transform var(--transition-fast);
   box-shadow: var(--shadow-sm);
 }
 
@@ -509,7 +515,7 @@ body.platform-darwin #service-dock {
 }
 
 .preset-service-btn.selected::after {
-  content: '✓';
+  content: "✓";
   position: absolute;
   top: 4px;
   right: 8px;
@@ -576,7 +582,8 @@ body.platform-darwin #service-dock {
   border-left: 1px solid var(--border-color);
   display: flex;
   flex-direction: column;
-  transition: width var(--transition-slow),
+  transition:
+    width var(--transition-slow),
     opacity var(--transition-slow);
   position: relative;
   z-index: 20;
@@ -632,7 +639,7 @@ body.resizing-active iframe {
 }
 
 /* SHIG #60 エスケープハッチ - 閉じるボタンは常にアクセス可能 */
-#ai-header>button,
+#ai-header > button,
 #close-ai-btn {
   /* no-drag: interactive elements */
   background: none;
@@ -646,11 +653,12 @@ body.resizing-active iframe {
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background-color var(--transition-fast),
+  transition:
+    background-color var(--transition-fast),
     color var(--transition-fast);
 }
 
-#ai-header>button:hover,
+#ai-header > button:hover,
 #close-ai-btn:hover {
   background: rgba(255, 255, 255, 0.1);
   color: var(--text-primary);
@@ -732,7 +740,9 @@ body.resizing-active iframe {
   border-radius: var(--radius-sm);
   font-size: 12px;
   opacity: 0;
-  transition: opacity var(--transition-fast), color var(--transition-fast);
+  transition:
+    opacity var(--transition-fast),
+    color var(--transition-fast);
 }
 
 .ai-dropdown-item:hover .delete-ai-btn {
@@ -755,7 +765,9 @@ body.resizing-active iframe {
   font-size: 13px;
   cursor: pointer;
   text-align: left;
-  transition: background var(--transition-fast), color var(--transition-fast);
+  transition:
+    background var(--transition-fast),
+    color var(--transition-fast);
 }
 
 .dropdown-add-btn:hover {
@@ -886,7 +898,8 @@ body.resizing-active iframe {
   background: var(--bg-primary);
   color: var(--text-primary);
   font-size: 14px;
-  transition: border-color var(--transition-fast),
+  transition:
+    border-color var(--transition-fast),
     box-shadow var(--transition-fast);
   min-height: var(--btn-size);
 }
@@ -924,7 +937,8 @@ body.resizing-active iframe {
   cursor: pointer;
   font-size: 14px;
   font-weight: 500;
-  transition: background-color var(--transition-fast),
+  transition:
+    background-color var(--transition-fast),
     transform var(--transition-fast);
 }
 
@@ -1021,7 +1035,8 @@ body.resizing-active iframe {
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background-color var(--transition-fast),
+  transition:
+    background-color var(--transition-fast),
     color var(--transition-fast);
 }
 

@@ -1,0 +1,18 @@
+# Lefthook configuration for Hitotone
+# See https://github.com/evilmartians/lefthook/blob/master/docs/configuration.md
+
+pre-commit:
+  parallel: true
+  commands:
+    biome-check:
+      glob: "src/**/*.{js,ts,jsx,tsx,json,css}"
+      run: npx @biomejs/biome check --write --no-errors-on-unmatched --files-ignore-unknown=true {staged_files}
+      stage_fixed: true
+
+    rust-fmt:
+      glob: "src-tauri/**/*.rs"
+      run: cargo fmt --all -- --check
+    
+    rust-clippy:
+      glob: "src-tauri/**/*.rs"
+      run: cargo clippy -- -D warnings

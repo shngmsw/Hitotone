@@ -59,9 +59,7 @@ export class UpdateManager {
 
       await this.update.downloadAndInstall((event) => {
         if (event.event === 'Progress') {
-          const percent = Math.round(
-            (event.data.chunkLength / event.data.contentLength) * 100
-          );
+          const percent = Math.round((event.data.chunkLength / event.data.contentLength) * 100);
           this.message.textContent = `ダウンロード中... ${percent}%`;
           this.progressBar.style.width = `${percent}%`;
         } else if (event.event === 'Finished') {
