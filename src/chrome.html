@@ -54,6 +54,7 @@
     #app-logo img { width: 28px; height: 28px; border-radius: 6px; }
     #service-list {
       flex: 1;
+      min-height: 0;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -105,6 +106,7 @@
       align-items: center;
       gap: 4px;
       padding: 0 8px;
+      flex-shrink: 0;
     }
     .dock-btn {
       width: 40px;
@@ -122,24 +124,23 @@
     }
     .dock-btn:hover { background: rgba(255,255,255,0.15); color: rgba(255,255,255,0.95); }
     #preset-picker {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
       gap: 2px;
       padding: 4px 8px 0;
       border-top: 1px solid rgba(255,255,255,0.08);
       margin-top: 4px;
       width: 100%;
+      flex-shrink: 0;
     }
     .preset-btn {
-      width: 36px;
-      height: 26px;
-      border-radius: 6px;
+      height: 24px;
+      border-radius: 5px;
       background: rgba(255,255,255,0.05);
       border: 1px solid transparent;
       cursor: pointer;
       color: rgba(255,255,255,0.5);
-      font-size: 14px;
+      font-size: 13px;
       display: flex;
       align-items: center;
       justify-content: center;
