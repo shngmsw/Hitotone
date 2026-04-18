@@ -13,46 +13,21 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      padding: 8px 0 12px;
+      padding: 8px 0 10px;
     }
-    #win-controls {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 2px;
-      padding: 6px 0 4px;
-      width: 100%;
-    }
-    .win-btn {
-      width: 28px; height: 28px;
-      border-radius: 6px;
-      border: none;
-      background: rgba(255,255,255,0.06);
-      color: rgba(255,255,255,0.6);
-      font-size: 11px;
-      cursor: pointer;
-      display: flex; align-items: center; justify-content: center;
-      transition: background 0.12s;
-    }
-    .win-btn:hover { background: rgba(255,255,255,0.18); color: white; }
-    #close-btn:hover { background: rgba(229,62,62,0.8); color: white; }
-    #drag-zone {
-      flex: 1;
-      width: 100%;
-      cursor: grab;
-      min-height: 20px;
-    }
-    #drag-zone:active { cursor: grabbing; }
     #app-logo {
       width: 40px;
-      height: 36px;
+      height: 34px;
       display: flex;
       align-items: center;
       justify-content: center;
-      margin-bottom: 4px;
+      margin-bottom: 6px;
+      flex-shrink: 0;
     }
     #app-logo img { width: 28px; height: 28px; border-radius: 6px; }
-    #service-list {
+
+    /* Space list */
+    #space-list {
       flex: 1;
       min-height: 0;
       display: flex;
@@ -65,8 +40,9 @@
       padding: 0 8px;
       scrollbar-width: none;
     }
-    #service-list::-webkit-scrollbar { display: none; }
-    .service-item {
+    #space-list::-webkit-scrollbar { display: none; }
+
+    .space-item {
       width: 40px;
       height: 40px;
       border-radius: 10px;
@@ -74,62 +50,67 @@
       align-items: center;
       justify-content: center;
       cursor: pointer;
-      font-size: 20px;
+      font-size: 14px;
+      font-weight: 600;
+      color: rgba(255,255,255,0.55);
       background: rgba(255,255,255,0.06);
+      border: 1.5px solid transparent;
       position: relative;
-      transition: background 0.12s, transform 0.1s;
+      transition: background 0.12s, color 0.12s, border-color 0.12s;
       flex-shrink: 0;
+      letter-spacing: -0.3px;
     }
-    .service-item:hover { background: rgba(255,255,255,0.15); transform: scale(1.06); }
-    .service-item.active { background: rgba(99,179,237,0.25); outline: 2px solid rgba(99,179,237,0.6); }
-    .service-favicon { width: 24px; height: 24px; border-radius: 4px; object-fit: contain; }
-    .badge {
+    .space-item:hover { background: rgba(255,255,255,0.13); color: rgba(255,255,255,0.9); }
+    .space-item.active {
+      background: rgba(99,179,237,0.18);
+      border-color: rgba(99,179,237,0.55);
+      color: rgba(99,179,237,1);
+    }
+    .space-item .space-delete {
       position: absolute;
-      top: -4px;
-      right: -4px;
-      background: #e53e3e;
+      top: -5px;
+      right: -5px;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: rgba(220,80,80,0.85);
       color: white;
-      border-radius: 9999px;
       font-size: 9px;
-      font-weight: bold;
-      min-width: 15px;
-      height: 15px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 0 3px;
-    }
-    .badge.hidden { display: none; }
-    #dock-actions {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 4px;
-      padding: 0 8px;
-      flex-shrink: 0;
-    }
-    .dock-btn {
-      width: 40px;
-      height: 40px;
-      border-radius: 10px;
-      background: rgba(255,255,255,0.06);
-      border: none;
+      line-height: 14px;
+      text-align: center;
       cursor: pointer;
-      color: rgba(255,255,255,0.65);
-      font-size: 15px;
+      display: none;
+      border: none;
+      padding: 0;
+    }
+    .space-item:hover .space-delete { display: flex; align-items: center; justify-content: center; }
+
+    #add-space-btn {
+      width: 40px;
+      height: 28px;
+      border-radius: 8px;
+      background: rgba(255,255,255,0.04);
+      border: 1px dashed rgba(255,255,255,0.2);
+      cursor: pointer;
+      color: rgba(255,255,255,0.4);
+      font-size: 16px;
       display: flex;
       align-items: center;
       justify-content: center;
-      transition: background 0.12s;
+      transition: background 0.12s, color 0.12s;
+      flex-shrink: 0;
+      margin-top: 2px;
     }
-    .dock-btn:hover { background: rgba(255,255,255,0.15); color: rgba(255,255,255,0.95); }
+    #add-space-btn:hover { background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.85); }
+
+    /* Preset picker (2x2 grid) */
     #preset-picker {
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 2px;
       padding: 4px 8px 0;
       border-top: 1px solid rgba(255,255,255,0.08);
-      margin-top: 4px;
+      margin-top: 6px;
       width: 100%;
       flex-shrink: 0;
     }
@@ -148,6 +129,34 @@
     }
     .preset-btn:hover { background: rgba(255,255,255,0.13); color: rgba(255,255,255,0.9); }
     .preset-btn.active { background: rgba(99,179,237,0.2); border-color: rgba(99,179,237,0.5); color: rgba(99,179,237,1); }
+
+    /* Dock actions */
+    #dock-actions {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      padding: 6px 8px 0;
+      border-top: 1px solid rgba(255,255,255,0.06);
+      margin-top: 4px;
+      flex-shrink: 0;
+      width: 100%;
+    }
+    .dock-btn {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      background: rgba(255,255,255,0.06);
+      border: none;
+      cursor: pointer;
+      color: rgba(255,255,255,0.65);
+      font-size: 15px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.12s;
+    }
+    .dock-btn:hover { background: rgba(255,255,255,0.15); color: rgba(255,255,255,0.95); }
   </style>
 </head>
 <body>
@@ -155,13 +164,13 @@
     <div id="app-logo">
       <img src="../assets/icons/icon.png" alt="Hitotone" onerror="this.style.display='none'">
     </div>
-    <div id="service-list"></div>
+    <div id="space-list"></div>
+    <button id="add-space-btn" title="スペースを追加">+</button>
+    <div id="preset-picker"></div>
     <div id="dock-actions">
-      <button id="add-service-btn" class="dock-btn" title="サービスを追加">+</button>
       <button id="toggle-ai-btn" class="dock-btn" title="AIコンパニオン">AI</button>
       <button id="settings-btn" class="dock-btn" title="設定">⚙</button>
     </div>
-    <div id="preset-picker"></div>
   </aside>
   <script type="module" src="./chrome.js"></script>
 </body>

@@ -7,7 +7,6 @@ import { AiCompanionManager } from './AiCompanionManager.js';
 import { EventManager } from './EventManager.js';
 import { LoadingManager } from './LoadingManager.js';
 import { PaneTreeManager } from './PaneTreeManager.js';
-import { ServiceDockManager } from './ServiceDockManager.js';
 import { SettingsManager } from './SettingsManager.js';
 import { UpdateManager } from './UpdateManager.js';
 import { WebViewManager } from './WebViewManager.js';
@@ -22,7 +21,6 @@ class Hitotone {
 
     // Managers
     this.loadingManager = new LoadingManager();
-    this.serviceDockManager = new ServiceDockManager(this);
     this.webViewManager = new WebViewManager(this);
     this.aiCompanionManager = new AiCompanionManager(this);
     this.settingsManager = new SettingsManager(this);
@@ -60,10 +58,6 @@ class Hitotone {
       const showAiCompanion = await invoke('get_show_ai_companion');
       const aiWidth = await invoke('get_ai_width');
       console.log('[Hitotone] showAiCompanion:', showAiCompanion, 'aiWidth:', aiWidth);
-
-      // サービスドックを構築
-      this.serviceDockManager.render();
-      console.log('[Hitotone] dock rendered');
 
       // イベントリスナーを設定（先に登録してボタンを確実に動くようにする）
       this.eventManager.setup();
@@ -105,26 +99,11 @@ class Hitotone {
         console.warn('[Hitotone] AI companion setup error (non-fatal):', err);
       }
 
-      // 初期サービスをアクティブに
-      // 初期サービスをアクティブに
+      // サービス未設定ならオンボーディング
       if (this.services.length === 0) {
         console.log('[Hitotone] No services found, showing onboarding');
         const onboarding = document.getElementById('onboarding-screen');
         if (onboarding) this.showModal(onboarding);
-      } else if (this.activeServiceId) {
-        // ... (check validity of activeServiceId?)
-        // wait, earlier if activeServiceId doesn't exist in services, fallback to services[0].
-        const hasActiveService = this.services.find((s) => s.id === this.activeServiceId);
-        if (hasActiveService) {
-          console.log('[Hitotone] switching to active service:', this.activeServiceId);
-          await this.webViewManager.switchService(this.activeServiceId);
-        } else {
-          console.log('[Hitotone] switching to first service:', this.services[0].id);
-          await this.webViewManager.switchService(this.services[0].id);
-        }
-      } else if (this.services.length > 0) {
-        console.log('[Hitotone] switching to first service:', this.services[0].id);
-        await this.webViewManager.switchService(this.services[0].id);
       }
 
       // chrome WebView からのモーダル開要求をリッスン

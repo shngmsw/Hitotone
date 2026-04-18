@@ -2,67 +2,78 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { PresetPickerManager } from './PresetPickerManager.js';
 
-let services = [];
-let activeServiceId = null;
+let spaces = [];
+let activeSpaceId = null;
 
 async function init() {
   try {
-    [services, activeServiceId] = await Promise.all([
-      invoke('get_services'),
-      invoke('get_active_service'),
+    [spaces, activeSpaceId] = await Promise.all([
+      invoke('get_spaces'),
+      invoke('get_active_space_id'),
     ]);
   } catch (e) {
     console.error('[chrome] init error:', e);
   }
-  renderDock();
+  renderSpaces();
   setupButtons();
   setupListeners();
+
+  const presetPicker = new PresetPickerManager();
+  presetPicker.init('preset-picker');
 }
 
-function renderDock() {
-  const list = document.getElementById('service-list');
+function renderSpaces() {
+  const list = document.getElementById('space-list');
   if (!list) return;
   list.innerHTML = '';
-  services.filter(s => s.enabled).forEach(service => {
+
+  spaces.forEach((space, idx) => {
     const item = document.createElement('div');
-    item.className = 'service-item' + (service.id === activeServiceId ? ' active' : '');
-    item.dataset.serviceId = service.id;
-    item.title = service.name;
+    item.className = 'space-item' + (space.id === activeSpaceId ? ' active' : '');
+    item.dataset.spaceId = space.id;
+    item.title = space.name;
+    item.textContent = String(idx + 1);
 
-    const faviconUrl = service.faviconUrl || service.favicon_url;
-    if (faviconUrl) {
-      const img = document.createElement('img');
-      img.className = 'service-favicon';
-      img.src = faviconUrl;
-      img.alt = service.name;
-      img.onerror = () => { img.replaceWith(document.createTextNode(service.icon)); };
-      item.appendChild(img);
-    } else {
-      item.appendChild(document.createTextNode(service.icon));
-    }
+    const delBtn = document.createElement('button');
+    delBtn.className = 'space-delete';
+    delBtn.title = '削除';
+    delBtn.textContent = '×';
+    delBtn.addEventListener('click', async e => {
+      e.stopPropagation();
+      try {
+        spaces = await invoke('delete_space', { spaceId: space.id });
+        activeSpaceId = await invoke('get_active_space_id');
+        renderSpaces();
+      } catch (err) {
+        console.warn('[chrome] delete_space:', err);
+      }
+    });
+    item.appendChild(delBtn);
 
-    const badge = document.createElement('span');
-    badge.className = 'badge hidden';
-    item.appendChild(badge);
-
-    item.addEventListener('click', () => switchService(service.id));
+    item.addEventListener('click', () => switchSpace(space.id));
     list.appendChild(item);
   });
 }
 
-async function switchService(serviceId) {
-  await invoke('switch_service_webview', { serviceId });
-  await invoke('set_active_service', { serviceId });
-  activeServiceId = serviceId;
-  document.querySelectorAll('.service-item').forEach(el => {
-    el.classList.toggle('active', el.dataset.serviceId === serviceId);
-  });
+async function switchSpace(spaceId) {
+  if (spaceId === activeSpaceId) return;
+  try {
+    await invoke('switch_space', { spaceId });
+    activeSpaceId = spaceId;
+    renderSpaces();
+  } catch (e) {
+    console.error('[chrome] switch_space error:', e);
+  }
 }
 
-
 function setupButtons() {
-  document.getElementById('add-service-btn')?.addEventListener('click', () => {
-    invoke('request_open_modal', { modalType: 'add-service' }).catch(console.error);
+  document.getElementById('add-space-btn')?.addEventListener('click', async () => {
+    try {
+      spaces = await invoke('create_space', { name: '' });
+      renderSpaces();
+    } catch (e) {
+      console.error('[chrome] create_space error:', e);
+    }
   });
 
   document.getElementById('toggle-ai-btn')?.addEventListener('click', async () => {
@@ -83,50 +94,16 @@ function setupButtons() {
 }
 
 function setupListeners() {
-  listen('badge-updated', (e) => {
-    const { serviceId, count } = e.payload;
-    const item = document.querySelector(`.service-item[data-service-id="${serviceId}"]`);
-    if (!item) return;
-    const badge = item.querySelector('.badge');
-    if (!badge) return;
-    if (count > 0) {
-      badge.textContent = count > 99 ? '99+' : String(count);
-      badge.classList.remove('hidden');
-    } else {
-      badge.classList.add('hidden');
-    }
+  listen('space-list-updated', async () => {
+    spaces = await invoke('get_spaces');
+    activeSpaceId = await invoke('get_active_space_id');
+    renderSpaces();
   });
 
-  listen('favicon-updated', (e) => {
-    const { serviceId, faviconUrl } = e.payload;
-    const item = document.querySelector(`.service-item[data-service-id="${serviceId}"]`);
-    if (!item) return;
-    const badge = item.querySelector('.badge');
-    Array.from(item.childNodes).forEach(n => { if (n !== badge) n.remove(); });
-    const img = document.createElement('img');
-    img.className = 'service-favicon';
-    img.src = faviconUrl;
-    const svc = services.find(s => s.id === serviceId);
-    img.alt = svc?.name || '';
-    img.onerror = () => { img.replaceWith(document.createTextNode(svc?.icon || '🔗')); };
-    item.insertBefore(img, badge);
-  });
-
-  listen('service-list-updated', async () => {
-    services = await invoke('get_services');
-    renderDock();
-  });
-
-  listen('active-service-changed', (e) => {
-    activeServiceId = e.payload;
-    document.querySelectorAll('.service-item').forEach(el => {
-      el.classList.toggle('active', el.dataset.serviceId === activeServiceId);
-    });
+  listen('pane-tree-updated', async () => {
+    activeSpaceId = await invoke('get_active_space_id');
+    renderSpaces();
   });
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-  init();
-  const presetPicker = new PresetPickerManager();
-  presetPicker.init('preset-picker');
-});
+document.addEventListener('DOMContentLoaded', init);

@@ -63,6 +63,12 @@ pub fn run() {
             commands::focus_pane,
             commands::apply_layout_preset,
             commands::switch_service_in_pane,
+            commands::get_spaces,
+            commands::get_active_space_id,
+            commands::create_space,
+            commands::delete_space,
+            commands::rename_space,
+            commands::switch_space,
         ])
         .on_window_event(|window, event| {
             let app_handle = window.app_handle();
@@ -131,6 +137,7 @@ pub fn run() {
                                 active_svc_id.clone(),
                             ) {
                                 s.service_tree = std::sync::Arc::new(new_tree);
+                                s.sync_tree_to_active_space();
                             }
                         }
 

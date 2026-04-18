@@ -1,7 +1,7 @@
 use crate::layout;
 use crate::state::{
-    AiService, AppState, LayoutNode, LayoutPreset, Pane, PaneId, PaneKind, Service, SplitDirection,
-    SplitSize,
+    AiService, AppState, LayoutNode, LayoutPreset, Pane, PaneId, PaneKind, Service, Space,
+    SplitDirection, SplitSize,
 };
 use crate::store;
 use crate::webview_manager;
@@ -467,8 +467,13 @@ pub async fn switch_service_webview(
             s.service_tree = Arc::new(new_tree);
         }
         s.active_service_id = service_id.clone();
+        s.sync_tree_to_active_space();
     }
     store::save_value(&app, "activeServiceId", &service_id);
+    {
+        let s = state.read().await;
+        store::save_spaces(&app, &s.spaces, &s.active_space_id);
+    }
 
     let snapshot = state.read().await.clone();
     webview_manager::update_layout(&app, &snapshot);
@@ -935,6 +940,7 @@ pub async fn split_pane(
         let mut s = state.write().await;
         s.service_tree = Arc::new(new_tree);
         s.focused_pane_id = Some(new_pane_id.clone());
+        s.sync_tree_to_active_space();
     }
 
     if app.get_webview(&label).is_none() {
@@ -1001,6 +1007,12 @@ pub async fn close_pane(
         }
     }
 
+    {
+        let mut s = state.write().await;
+        s.sync_tree_to_active_space();
+        store::save_spaces(&app, &s.spaces, &s.active_space_id);
+    }
+
     let snapshot = state.read().await.clone();
     webview_manager::update_layout(&app, &snapshot);
     let _ = app.emit("pane-tree-updated", ());
@@ -1019,7 +1031,12 @@ pub async fn resize_split(
         let s = state.read().await;
         layout::apply_split_sizes(&s.service_tree, &path, sizes)?
     };
-    state.write().await.service_tree = Arc::new(new_tree);
+    {
+        let mut s = state.write().await;
+        s.service_tree = Arc::new(new_tree);
+        s.sync_tree_to_active_space();
+        store::save_spaces(&app, &s.spaces, &s.active_space_id);
+    }
     let snapshot = state.read().await.clone();
     webview_manager::update_layout(&app, &snapshot);
     Ok((*state.read().await.service_tree).clone())
@@ -1056,6 +1073,8 @@ pub async fn apply_layout_preset(
         {
             s.active_service_id = svc;
         }
+        s.sync_tree_to_active_space();
+        store::save_spaces(&app, &s.spaces, &s.active_space_id);
     }
 
     let snapshot = state.read().await.clone();
@@ -1135,8 +1154,148 @@ pub async fn switch_service_in_pane(
         s.service_tree = Arc::new(new_tree);
         s.focused_pane_id = Some(target);
         s.active_service_id = service_id.clone();
+        s.sync_tree_to_active_space();
+        store::save_spaces(&app, &s.spaces, &s.active_space_id);
     }
     store::save_value(&app, "activeServiceId", &service_id);
+
+    let snapshot = state.read().await.clone();
+    webview_manager::update_layout(&app, &snapshot);
+    let _ = app.emit("pane-tree-updated", ());
+
+    let s = state.read().await;
+    Ok(PaneTreeState {
+        tree: (*s.service_tree).clone(),
+        focused_pane_id: s.focused_pane_id.as_ref().map(|id| id.0.clone()),
+    })
+}
+
+// ========================================
+// Space commands
+// ========================================
+
+#[tauri::command]
+pub async fn get_spaces(state: State<'_, RwLock<AppState>>) -> Result<Vec<Space>, String> {
+    Ok(state.read().await.spaces.clone())
+}
+
+#[tauri::command]
+pub async fn get_active_space_id(state: State<'_, RwLock<AppState>>) -> Result<String, String> {
+    Ok(state.read().await.active_space_id.clone())
+}
+
+#[tauri::command]
+pub async fn create_space(
+    app: AppHandle,
+    state: State<'_, RwLock<AppState>>,
+    name: String,
+) -> Result<Vec<Space>, String> {
+    let new_id = format!("space-{}", chrono_now());
+    let new_space = Space {
+        id: new_id.clone(),
+        name: if name.is_empty() {
+            let n = state.read().await.spaces.len() + 1;
+            format!("スペース {}", n)
+        } else {
+            name
+        },
+        tree: crate::layout::build_tree_for_preset(LayoutPreset::Single),
+    };
+
+    let spaces = {
+        let mut s = state.write().await;
+        s.spaces.push(new_space);
+        store::save_spaces(&app, &s.spaces, &s.active_space_id);
+        s.spaces.clone()
+    };
+    let _ = app.emit("space-list-updated", ());
+    Ok(spaces)
+}
+
+#[tauri::command]
+pub async fn delete_space(
+    app: AppHandle,
+    state: State<'_, RwLock<AppState>>,
+    space_id: String,
+) -> Result<Vec<Space>, String> {
+    let (spaces, new_active) = {
+        let mut s = state.write().await;
+        if s.spaces.len() <= 1 {
+            return Err("cannot delete the last space".into());
+        }
+        let idx = s
+            .spaces
+            .iter()
+            .position(|sp| sp.id == space_id)
+            .ok_or("space not found")?;
+        s.spaces.remove(idx);
+
+        // If we deleted the active space, switch to the first remaining
+        if s.active_space_id == space_id {
+            let new_id = s.spaces[0].id.clone();
+            s.active_space_id = new_id.clone();
+            s.load_active_space_tree();
+            (s.spaces.clone(), new_id)
+        } else {
+            (s.spaces.clone(), s.active_space_id.clone())
+        }
+    };
+
+    store::save_spaces(&app, &spaces, &new_active);
+
+    let snapshot = state.read().await.clone();
+    webview_manager::update_layout(&app, &snapshot);
+    let _ = app.emit("pane-tree-updated", ());
+    let _ = app.emit("space-list-updated", ());
+    Ok(spaces)
+}
+
+#[tauri::command]
+pub async fn rename_space(
+    app: AppHandle,
+    state: State<'_, RwLock<AppState>>,
+    space_id: String,
+    name: String,
+) -> Result<Vec<Space>, String> {
+    let spaces = {
+        let mut s = state.write().await;
+        let space = s
+            .spaces
+            .iter_mut()
+            .find(|sp| sp.id == space_id)
+            .ok_or("space not found")?;
+        space.name = name;
+        store::save_spaces(&app, &s.spaces, &s.active_space_id);
+        s.spaces.clone()
+    };
+    let _ = app.emit("space-list-updated", ());
+    Ok(spaces)
+}
+
+#[tauri::command]
+pub async fn switch_space(
+    app: AppHandle,
+    state: State<'_, RwLock<AppState>>,
+    space_id: String,
+) -> Result<PaneTreeState, String> {
+    {
+        let mut s = state.write().await;
+        if s.active_space_id == space_id {
+            return Ok(PaneTreeState {
+                tree: (*s.service_tree).clone(),
+                focused_pane_id: s.focused_pane_id.as_ref().map(|id| id.0.clone()),
+            });
+        }
+        if !s.spaces.iter().any(|sp| sp.id == space_id) {
+            return Err("space not found".into());
+        }
+        // Save current tree to active space before switching
+        s.sync_tree_to_active_space();
+        // Switch
+        s.active_space_id = space_id.clone();
+        s.load_active_space_tree();
+        store::save_spaces(&app, &s.spaces, &s.active_space_id);
+    }
 
     let snapshot = state.read().await.clone();
     webview_manager::update_layout(&app, &snapshot);
