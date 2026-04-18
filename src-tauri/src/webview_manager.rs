@@ -247,31 +247,43 @@ pub fn create_service_webview(
     let parsed_url: url::Url = url.parse().map_err(|e: url::ParseError| e.to_string())?;
 
     let service_id = label.strip_prefix("service-").unwrap_or(label);
-    let webview_builder =
+
+    // Per-service data directory: persists cookies/session across restarts
+    let data_dir = app
+        .path()
+        .app_data_dir()
+        .map(|p| p.join("webview-data").join(service_id));
+
+    let mut builder =
         tauri::WebviewBuilder::new(label, tauri::WebviewUrl::External(parsed_url.clone()))
             .user_agent(CHROME_USER_AGENT)
             .initialization_script(browser_spoof_script())
-            .initialization_script(crate::notification::get_notification_script(service_id))
-            .on_navigation({
-                let app_handle = app.clone();
-                let initial_url = parsed_url.clone();
-                move |nav_url| {
-                    println!("[service-nav] {}", nav_url.as_str());
-                    let is_internal = is_internal_navigation(nav_url, &initial_url);
-                    let is_auth = is_auth_url(nav_url.as_str());
+            .initialization_script(crate::notification::get_notification_script(service_id));
 
-                    if !is_internal && !is_auth {
-                        println!(
-                            "[service-nav] Opening external link in browser: {}",
-                            nav_url.as_str()
-                        );
-                        #[allow(deprecated)]
-                        let _ = app_handle.shell().open(nav_url.as_str(), None);
-                        return false;
-                    }
-                    true
-                }
-            });
+    if let Ok(dir) = data_dir {
+        builder = builder.data_directory(dir);
+    }
+
+    let webview_builder = builder.on_navigation({
+        let app_handle = app.clone();
+        let initial_url = parsed_url.clone();
+        move |nav_url| {
+            println!("[service-nav] {}", nav_url.as_str());
+            let is_internal = is_internal_navigation(nav_url, &initial_url);
+            let is_auth = is_auth_url(nav_url.as_str());
+
+            if !is_internal && !is_auth {
+                println!(
+                    "[service-nav] Opening external link in browser: {}",
+                    nav_url.as_str()
+                );
+                #[allow(deprecated)]
+                let _ = app_handle.shell().open(nav_url.as_str(), None);
+                return false;
+            }
+            true
+        }
+    });
 
     let webview = main_window
         .add_child(
