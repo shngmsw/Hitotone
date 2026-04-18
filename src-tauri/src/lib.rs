@@ -1,22 +1,21 @@
 mod commands;
+mod layout;
 mod notification;
 mod state;
 mod store;
 mod tray;
 mod webview_manager;
+mod webview_ops;
 
 use state::AppState;
-use std::sync::Mutex;
 use tauri::Manager;
+use tokio::sync::RwLock;
 
 pub fn run() {
-    let app_state = AppState::default();
-
     tauri::Builder::default()
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_shell::init())
-        .manage(Mutex::new(app_state))
         .invoke_handler(tauri::generate_handler![
             commands::get_services,
             commands::add_service,
@@ -35,6 +34,7 @@ pub fn run() {
             commands::get_ai_width,
             commands::set_ai_width,
             commands::get_platform,
+            commands::window_start_drag,
             commands::window_minimize,
             commands::window_maximize,
             commands::window_close,
@@ -64,8 +64,8 @@ pub fn run() {
                 if window.label() == "main" {
                     if let Some(ww) = app_handle.get_webview_window("main") {
                         if let Ok(size) = ww.inner_size() {
-                            let state = app_handle.state::<Mutex<AppState>>();
-                            let mut s = state.lock().unwrap();
+                            let state = app_handle.state::<RwLock<AppState>>();
+                            let mut s = state.blocking_write();
                             s.window_bounds.width = size.width;
                             s.window_bounds.height = size.height;
                             store::save_state(app_handle, &s);
@@ -75,8 +75,9 @@ pub fn run() {
             }
         })
         .setup(|app| {
-            // Load state from store
-            store::load_state(app.handle(), &app.state::<Mutex<AppState>>());
+            // Load persisted state and register it
+            let app_state = store::load_state(app.handle());
+            app.manage(RwLock::new(app_state));
 
             // Setup system tray
             tray::setup_tray(app)?;
@@ -86,8 +87,8 @@ pub fn run() {
             {
                 // Collect service info first, then release the lock
                 let (services_info, active_service_id) = {
-                    let state = app.state::<Mutex<AppState>>();
-                    let s = state.lock().unwrap();
+                    let state = app.state::<RwLock<AppState>>();
+                    let s = state.blocking_read();
                     let services: Vec<(String, String)> = s
                         .services
                         .iter()
@@ -102,20 +103,40 @@ pub fn run() {
                 let main_win = app.get_window("main");
 
                 if let Some(ref main_win) = main_win {
-                    let layout = {
-                        let state = app.state::<Mutex<AppState>>();
-                        let s = state.lock().unwrap();
-                        webview_manager::get_layout_params(main_win, &s)
-                    };
+                    let viewport = webview_manager::get_viewport(main_win);
 
-                    if let Some(layout) = layout {
+                    if let Some(vp) = viewport {
+                        let (chrome_rect, svc_rect_opt) = {
+                            let state = app.state::<RwLock<AppState>>();
+                            let s = state.blocking_read();
+                            let tree = layout::build_tree_from_state(&s);
+                            let rects = layout::compute_rects(&tree, vp);
+
+                            let chrome_r = rects
+                                .iter()
+                                .find(|(id, _)| id.0 == "chrome")
+                                .map(|(_, r)| *r);
+
+                            let active_key = format!("service:{}", active_service_id);
+                            let svc_r = rects
+                                .iter()
+                                .find(|(id, _)| id.0 == active_key)
+                                .map(|(_, r)| *r);
+
+                            (chrome_r, svc_r)
+                        };
+
                         let mut created_labels: Vec<String> = Vec::new();
 
                         // Create chrome (dock) webview first — always visible
-                        println!("[setup] Creating chrome webview");
-                        match webview_manager::create_chrome_webview(main_win, &layout) {
-                            Ok(_) => println!("[setup] Created chrome webview OK"),
-                            Err(e) => println!("[setup] Failed to create chrome webview: {}", e),
+                        if let Some(r) = chrome_rect {
+                            println!("[setup] Creating chrome webview");
+                            match webview_ops::create_chrome_inline(app.handle(), r) {
+                                Ok(_) => println!("[setup] Created chrome webview OK"),
+                                Err(e) => {
+                                    println!("[setup] Failed to create chrome webview: {}", e)
+                                }
+                            }
                         }
 
                         // Create ONLY the active service webview.
@@ -126,14 +147,15 @@ pub fn run() {
                             .or_else(|| services_info.first())
                         {
                             let label = format!("service-{}", service_id);
+                            let tb = layout::TITLE_BAR_HEIGHT;
+                            let r = svc_rect_opt.unwrap_or(crate::layout::Rect {
+                                x: layout::DOCK_WIDTH,
+                                y: tb,
+                                width: vp.width - layout::DOCK_WIDTH,
+                                height: vp.height - tb,
+                            });
                             println!("[setup] Creating active service webview: {}", label);
-                            match webview_manager::create_service_webview(
-                                app.handle(),
-                                main_win,
-                                &label,
-                                url,
-                                &layout,
-                            ) {
+                            match webview_ops::create_service_inline(app.handle(), &label, url, r) {
                                 Ok(wv) => {
                                     let _ = wv.show();
                                     created_labels.push(label);
@@ -150,8 +172,8 @@ pub fn run() {
 
                         // Update state with created labels
                         {
-                            let state = app.state::<Mutex<AppState>>();
-                            let mut s = state.lock().unwrap();
+                            let state = app.state::<RwLock<AppState>>();
+                            let mut s = state.blocking_write();
                             for label in created_labels {
                                 if !s.created_webview_labels.contains(&label) {
                                     s.created_webview_labels.push(label);

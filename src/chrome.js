@@ -1,6 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-import { getCurrentWindow } from '@tauri-apps/api/window';
 
 let services = [];
 let activeServiceId = null;
@@ -15,7 +14,6 @@ async function init() {
     console.error('[chrome] init error:', e);
   }
   renderDock();
-  setupWindowControls();
   setupButtons();
   setupListeners();
 }
@@ -60,15 +58,6 @@ async function switchService(serviceId) {
   });
 }
 
-function setupWindowControls() {
-  const win = getCurrentWindow();
-  document.getElementById('close-btn')?.addEventListener('click', () => win.close());
-  document.getElementById('maximize-btn')?.addEventListener('click', () => win.toggleMaximize());
-  document.getElementById('minimize-btn')?.addEventListener('click', () => win.minimize());
-  document.getElementById('drag-zone')?.addEventListener('mousedown', (e) => {
-    if (e.button === 0) win.startDragging();
-  });
-}
 
 function setupButtons() {
   document.getElementById('add-service-btn')?.addEventListener('click', () => {

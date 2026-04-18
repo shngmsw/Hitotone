@@ -9,7 +9,14 @@
 </head>
 
 <body>
-  <!-- アプリヘッダー（ドラッグでウィンドウ移動可能） -->
+  <header id="titlebar" data-tauri-drag-region>
+    <span id="app-title">Hitotone</span>
+    <div id="titlebar-controls">
+      <button id="tb-minimize" title="最小化">&#8212;</button>
+      <button id="tb-maximize" title="最大化">&#9633;</button>
+      <button id="tb-close" title="閉じる">&#10005;</button>
+    </div>
+  </header>
   <div id="app">
     <!-- L2: メインキャンバス (WebViews managed by Tauri backend) -->
     <main id="main-canvas">

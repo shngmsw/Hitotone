@@ -178,6 +178,7 @@ export class AiCompanionManager {
         const deltaX = startX - e.clientX;
         const newWidth = Math.max(minWidth, Math.min(maxWidth, startWidth + deltaX));
         aiCompanion.style.width = `${newWidth}px`;
+        invoke('resize_ai_webview', { width: Math.round(newWidth) }).catch(() => {});
       });
     };
 

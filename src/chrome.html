@@ -37,10 +37,10 @@
     .win-btn:hover { background: rgba(255,255,255,0.18); color: white; }
     #close-btn:hover { background: rgba(229,62,62,0.8); color: white; }
     #drag-zone {
-      width: 40px; height: 20px;
+      flex: 1;
+      width: 100%;
       cursor: grab;
-      flex-shrink: 0;
-      margin-bottom: 4px;
+      min-height: 20px;
     }
     #drag-zone:active { cursor: grabbing; }
     #app-logo {
@@ -125,12 +125,6 @@
 </head>
 <body>
   <aside id="service-dock">
-    <div id="win-controls">
-      <button id="close-btn" class="win-btn" title="閉じる">✕</button>
-      <button id="maximize-btn" class="win-btn" title="最大化">□</button>
-      <button id="minimize-btn" class="win-btn" title="最小化">—</button>
-    </div>
-    <div id="drag-zone" title="ドラッグで移動"></div>
     <div id="app-logo">
       <img src="../assets/icons/icon.png" alt="Hitotone" onerror="this.style.display='none'">
     </div>

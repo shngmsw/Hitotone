@@ -1,13 +1,17 @@
 use crate::state::{AiService, AppState, Service};
 use crate::store;
 use crate::webview_manager;
-use std::sync::Mutex;
 use tauri::{AppHandle, Emitter, Manager, State};
+use tokio::sync::RwLock;
 
 /// chrome WebView から modal 表示をリクエスト。service/AI WebView を隠してから親に通知。
 #[tauri::command]
-pub fn request_open_modal(app: AppHandle, state: State<Mutex<AppState>>, modal_type: String) {
-    let active_service_id = state.lock().unwrap().active_service_id.clone();
+pub async fn request_open_modal(
+    app: AppHandle,
+    state: State<'_, RwLock<AppState>>,
+    modal_type: String,
+) -> Result<(), ()> {
+    let active_service_id = state.read().await.active_service_id.clone();
     if !active_service_id.is_empty() {
         let label = format!("service-{}", active_service_id);
         if let Some(wv) = app.get_webview(&label) {
@@ -18,6 +22,7 @@ pub fn request_open_modal(app: AppHandle, state: State<Mutex<AppState>>, modal_t
         let _ = wv.hide();
     }
     let _ = app.emit("open-modal", &modal_type);
+    Ok(())
 }
 
 // ========================================
@@ -25,68 +30,68 @@ pub fn request_open_modal(app: AppHandle, state: State<Mutex<AppState>>, modal_t
 // ========================================
 
 #[tauri::command]
-pub fn get_services(state: State<Mutex<AppState>>) -> Vec<Service> {
-    let s = state.lock().unwrap();
-    s.services.clone()
+pub async fn get_services(state: State<'_, RwLock<AppState>>) -> Result<Vec<Service>, ()> {
+    Ok(state.read().await.services.clone())
 }
 
 #[tauri::command]
-pub fn add_service(
+pub async fn add_service(
     app: AppHandle,
-    state: State<Mutex<AppState>>,
+    state: State<'_, RwLock<AppState>>,
     service: Service,
-) -> Vec<Service> {
-    let mut s = state.lock().unwrap();
+) -> Result<Vec<Service>, ()> {
     let new_service = Service {
         id: format!("custom-{}", chrono_now()),
         name: service.name,
         url: service.url,
         icon: if service.icon.is_empty() {
-            "\u{1F517}".to_string() // 🔗
+            "\u{1F517}".to_string()
         } else {
             service.icon
         },
         enabled: true,
         favicon_url: None,
     };
-    s.services.push(new_service);
-    store::save_services(&app, &s.services);
-    let services = s.services.clone();
-    drop(s);
+    let services = {
+        let mut s = state.write().await;
+        s.services.push(new_service);
+        store::save_services(&app, &s.services);
+        s.services.clone()
+    };
     let _ = app.emit("service-list-updated", ());
-    services
+    Ok(services)
 }
 
 #[tauri::command]
-pub fn remove_service(
+pub async fn remove_service(
     app: AppHandle,
-    state: State<Mutex<AppState>>,
+    state: State<'_, RwLock<AppState>>,
     service_id: String,
-) -> Vec<Service> {
+) -> Result<Vec<Service>, ()> {
     let label = format!("service-{}", service_id);
 
-    // Close the webview
     if let Some(wv) = app.get_webview(&label) {
         let _ = wv.close();
     }
 
-    let mut s = state.lock().unwrap();
-    s.services.retain(|svc| svc.id != service_id);
-    s.created_webview_labels.retain(|l| l != &label);
-    store::save_services(&app, &s.services);
-    let services = s.services.clone();
-    drop(s);
+    let services = {
+        let mut s = state.write().await;
+        s.services.retain(|svc| svc.id != service_id);
+        s.created_webview_labels.retain(|l| l != &label);
+        store::save_services(&app, &s.services);
+        s.services.clone()
+    };
     let _ = app.emit("service-list-updated", ());
-    services
+    Ok(services)
 }
 
 #[tauri::command]
-pub fn update_service(
+pub async fn update_service(
     app: AppHandle,
-    state: State<Mutex<AppState>>,
+    state: State<'_, RwLock<AppState>>,
     service: Service,
-) -> Vec<Service> {
-    let mut s = state.lock().unwrap();
+) -> Result<Vec<Service>, ()> {
+    let mut s = state.write().await;
     if let Some(existing) = s.services.iter_mut().find(|svc| svc.id == service.id) {
         existing.name = service.name;
         existing.url = service.url;
@@ -97,16 +102,16 @@ pub fn update_service(
         }
     }
     store::save_services(&app, &s.services);
-    s.services.clone()
+    Ok(s.services.clone())
 }
 
 #[tauri::command]
-pub fn reorder_services(
+pub async fn reorder_services(
     app: AppHandle,
-    state: State<Mutex<AppState>>,
+    state: State<'_, RwLock<AppState>>,
     services: Vec<Service>,
-) -> Vec<Service> {
-    let mut s = state.lock().unwrap();
+) -> Result<Vec<Service>, ()> {
+    let mut s = state.write().await;
 
     let mut current_ids: Vec<String> = s.services.iter().map(|svc| svc.id.clone()).collect();
     let mut new_ids: Vec<String> = services.iter().map(|svc| svc.id.clone()).collect();
@@ -114,7 +119,7 @@ pub fn reorder_services(
     new_ids.sort();
 
     if current_ids != new_ids {
-        return s.services.clone();
+        return Ok(s.services.clone());
     }
 
     s.services = services;
@@ -122,25 +127,23 @@ pub fn reorder_services(
     let result = s.services.clone();
     drop(s);
     let _ = app.emit("service-list-updated", ());
-    result
+    Ok(result)
 }
 
 #[tauri::command]
-pub fn get_active_service(state: State<Mutex<AppState>>) -> String {
-    let s = state.lock().unwrap();
-    s.active_service_id.clone()
+pub async fn get_active_service(state: State<'_, RwLock<AppState>>) -> Result<String, ()> {
+    Ok(state.read().await.active_service_id.clone())
 }
 
 #[tauri::command]
-pub fn set_active_service(
+pub async fn set_active_service(
     app: AppHandle,
-    state: State<Mutex<AppState>>,
+    state: State<'_, RwLock<AppState>>,
     service_id: String,
-) -> String {
-    let mut s = state.lock().unwrap();
-    s.active_service_id = service_id.clone();
+) -> Result<String, ()> {
+    state.write().await.active_service_id = service_id.clone();
     store::save_value(&app, "activeServiceId", &service_id);
-    service_id
+    Ok(service_id)
 }
 
 // ========================================
@@ -148,28 +151,31 @@ pub fn set_active_service(
 // ========================================
 
 #[tauri::command]
-pub fn get_ai_services(state: State<Mutex<AppState>>) -> Vec<AiService> {
-    let s = state.lock().unwrap();
-    s.ai_services.clone()
+pub async fn get_ai_services(state: State<'_, RwLock<AppState>>) -> Result<Vec<AiService>, ()> {
+    Ok(state.read().await.ai_services.clone())
 }
 
 #[tauri::command]
-pub fn get_active_ai_service(state: State<Mutex<AppState>>) -> Option<AiService> {
-    let s = state.lock().unwrap();
-    s.ai_services
+pub async fn get_active_ai_service(
+    state: State<'_, RwLock<AppState>>,
+) -> Result<Option<AiService>, ()> {
+    let s = state.read().await;
+    let found = s
+        .ai_services
         .iter()
         .find(|svc| svc.id == s.active_ai_service_id)
         .cloned()
-        .or_else(|| s.ai_services.first().cloned())
+        .or_else(|| s.ai_services.first().cloned());
+    Ok(found)
 }
 
 #[tauri::command]
-pub fn set_active_ai_service(
+pub async fn set_active_ai_service(
     app: AppHandle,
-    state: State<Mutex<AppState>>,
+    state: State<'_, RwLock<AppState>>,
     service_id: String,
-) -> Option<AiService> {
-    let mut s = state.lock().unwrap();
+) -> Result<Option<AiService>, ()> {
+    let mut s = state.write().await;
     let service = s
         .ai_services
         .iter()
@@ -179,16 +185,16 @@ pub fn set_active_ai_service(
         s.active_ai_service_id = service_id.clone();
         store::save_value(&app, "activeAiServiceId", &service_id);
     }
-    service
+    Ok(service)
 }
 
 #[tauri::command]
-pub fn add_ai_service(
+pub async fn add_ai_service(
     app: AppHandle,
-    state: State<Mutex<AppState>>,
+    state: State<'_, RwLock<AppState>>,
     service: AiService,
-) -> Vec<AiService> {
-    let mut s = state.lock().unwrap();
+) -> Result<Vec<AiService>, ()> {
+    let mut s = state.write().await;
     let new_service = AiService {
         id: format!("ai-{}", chrono_now()),
         name: service.name,
@@ -197,16 +203,16 @@ pub fn add_ai_service(
     };
     s.ai_services.push(new_service);
     store::save_ai_services(&app, &s.ai_services);
-    s.ai_services.clone()
+    Ok(s.ai_services.clone())
 }
 
 #[tauri::command]
-pub fn remove_ai_service(
+pub async fn remove_ai_service(
     app: AppHandle,
-    state: State<Mutex<AppState>>,
+    state: State<'_, RwLock<AppState>>,
     service_id: String,
-) -> Vec<AiService> {
-    let mut s = state.lock().unwrap();
+) -> Result<Vec<AiService>, ()> {
+    let mut s = state.write().await;
 
     let is_default = s
         .ai_services
@@ -215,7 +221,7 @@ pub fn remove_ai_service(
         .is_some_and(|svc| svc.is_default);
 
     if is_default {
-        return s.ai_services.clone();
+        return Ok(s.ai_services.clone());
     }
 
     s.ai_services.retain(|svc| svc.id != service_id);
@@ -228,7 +234,7 @@ pub fn remove_ai_service(
     }
 
     store::save_ai_services(&app, &s.ai_services);
-    s.ai_services.clone()
+    Ok(s.ai_services.clone())
 }
 
 // ========================================
@@ -236,32 +242,36 @@ pub fn remove_ai_service(
 // ========================================
 
 #[tauri::command]
-pub fn get_show_ai_companion(state: State<Mutex<AppState>>) -> bool {
-    let s = state.lock().unwrap();
-    s.show_ai_companion
+pub async fn get_show_ai_companion(state: State<'_, RwLock<AppState>>) -> Result<bool, ()> {
+    Ok(state.read().await.show_ai_companion)
 }
 
 #[tauri::command]
-pub fn set_show_ai_companion(app: AppHandle, state: State<Mutex<AppState>>, show: bool) -> bool {
-    let mut s = state.lock().unwrap();
-    s.show_ai_companion = show;
+pub async fn set_show_ai_companion(
+    app: AppHandle,
+    state: State<'_, RwLock<AppState>>,
+    show: bool,
+) -> Result<bool, ()> {
+    state.write().await.show_ai_companion = show;
     store::save_value(&app, "showAiCompanion", &show);
-    show
+    Ok(show)
 }
 
 #[tauri::command]
-pub fn get_ai_width(state: State<Mutex<AppState>>) -> u32 {
-    let s = state.lock().unwrap();
-    s.ai_width
+pub async fn get_ai_width(state: State<'_, RwLock<AppState>>) -> Result<u32, ()> {
+    Ok(state.read().await.ai_width)
 }
 
 #[tauri::command]
-pub fn set_ai_width(app: AppHandle, state: State<Mutex<AppState>>, width: u32) -> u32 {
-    let mut s = state.lock().unwrap();
+pub async fn set_ai_width(
+    app: AppHandle,
+    state: State<'_, RwLock<AppState>>,
+    width: u32,
+) -> Result<u32, ()> {
     let valid_width = width.clamp(300, 800);
-    s.ai_width = valid_width;
+    state.write().await.ai_width = valid_width;
     store::save_value(&app, "aiWidth", &valid_width);
-    valid_width
+    Ok(valid_width)
 }
 
 // ========================================
@@ -282,6 +292,13 @@ pub fn get_platform() -> String {
 // ========================================
 // Window controls
 // ========================================
+
+#[tauri::command]
+pub fn window_start_drag(app: AppHandle) {
+    if let Some(ww) = app.get_webview_window("main") {
+        let _ = ww.start_dragging();
+    }
+}
 
 #[tauri::command]
 pub fn window_minimize(app: AppHandle) {
@@ -322,6 +339,7 @@ pub fn window_is_maximized(app: AppHandle) -> bool {
 #[tauri::command]
 pub async fn create_service_webview(
     app: AppHandle,
+    state: State<'_, RwLock<AppState>>,
     service_id: String,
     url: String,
 ) -> Result<(), String> {
@@ -331,55 +349,23 @@ pub async fn create_service_webview(
         if let Ok(parsed_url) = url.parse::<url::Url>() {
             let _ = wv.navigate(parsed_url);
         }
-        let state = app.state::<Mutex<AppState>>();
-        let mut s = state.lock().unwrap();
+        let mut s = state.write().await;
         if !s.created_webview_labels.contains(&label) {
             s.created_webview_labels.push(label);
         }
         return Ok(());
     }
 
-    let (tx, rx) = tokio::sync::oneshot::channel();
-    let app_clone = app.clone();
-    let label_clone = label.clone();
-
-    let layout_info = {
-        let state = app.state::<Mutex<AppState>>();
-        let s = state.lock().unwrap();
-        if let Some(main_win) = app.get_window("main") {
-            crate::webview_manager::get_layout_params(&main_win, &s)
-        } else {
-            None
-        }
+    let rect = {
+        let s = state.read().await;
+        app.get_window("main")
+            .and_then(|w| webview_manager::get_service_zone_rect(&w, &s))
+            .ok_or_else(|| "Failed to compute service zone rect".to_string())?
     };
 
-    if let Some(l) = layout_info {
-        app.run_on_main_thread(move || {
-            let res = if let Some(main_win) = app_clone.get_window("main") {
-                match crate::webview_manager::create_service_webview(
-                    &app_clone,
-                    &main_win,
-                    &label_clone,
-                    &url,
-                    &l,
-                ) {
-                    Ok(_) => Ok(()),
-                    Err(e) => Err(e),
-                }
-            } else {
-                Err("Main window not found".into())
-            };
-            let _ = tx.send(res);
-        })
-        .map_err(|e| e.to_string())?;
+    crate::webview_ops::create_service(&app, label.clone(), url, rect).await?;
 
-        rx.await.map_err(|e| e.to_string())??;
-    } else {
-        return Err("Failed to compute layout".into());
-    }
-
-    let state = app.state::<Mutex<AppState>>();
-    let mut s = state.lock().unwrap();
+    let mut s = state.write().await;
     if !s.created_webview_labels.contains(&label) {
         s.created_webview_labels.push(label);
     }
@@ -387,14 +373,12 @@ pub async fn create_service_webview(
 }
 
 #[tauri::command]
-pub fn create_all_service_webviews(
+pub async fn create_all_service_webviews(
     app: AppHandle,
-    state: State<Mutex<AppState>>,
+    state: State<'_, RwLock<AppState>>,
 ) -> Result<(), String> {
-    // Windows are already created in setup() on the main thread.
-    // This command just discovers and registers them.
     let services_to_register = {
-        let s = state.lock().unwrap();
+        let s = state.read().await;
         s.services
             .iter()
             .filter(|svc| svc.enabled)
@@ -420,19 +404,15 @@ pub fn create_all_service_webviews(
         }
     }
 
-    // Register AI webview
+    let mut s = state.write().await;
+
     if app.get_webview("ai-webview").is_some() {
-        let mut s = state.lock().unwrap();
         s.ai_webview_created = true;
     }
 
-    // Update state with registered labels
-    {
-        let mut s = state.lock().unwrap();
-        for label in registered_labels {
-            if !s.created_webview_labels.contains(&label) {
-                s.created_webview_labels.push(label);
-            }
+    for label in registered_labels {
+        if !s.created_webview_labels.contains(&label) {
+            s.created_webview_labels.push(label);
         }
     }
 
@@ -442,46 +422,29 @@ pub fn create_all_service_webviews(
 #[tauri::command]
 pub async fn switch_service_webview(
     app: AppHandle,
-    state: State<'_, Mutex<AppState>>,
+    state: State<'_, RwLock<AppState>>,
     service_id: String,
 ) -> Result<(), String> {
     println!("[commands] switch_service_webview: {}", service_id);
     let label = format!("service-{}", service_id);
 
-    // Lazy creation: create WebView if it doesn't exist yet
     if app.get_webview(&label).is_none() {
         let url_opt = {
-            let s = state.lock().unwrap();
+            let s = state.read().await;
             s.services
                 .iter()
                 .find(|svc| svc.id == service_id)
                 .map(|svc| svc.url.clone())
         };
         if let Some(url) = url_opt {
-            let layout_info = {
-                let s = state.lock().unwrap();
-                if let Some(main_win) = app.get_window("main") {
-                    webview_manager::get_layout_params(&main_win, &s)
-                } else {
-                    None
-                }
+            let rect = {
+                let s = state.read().await;
+                app.get_window("main")
+                    .and_then(|w| webview_manager::get_service_zone_rect(&w, &s))
             };
-            if let Some(l) = layout_info {
-                let (tx, rx) = tokio::sync::oneshot::channel::<Result<(), String>>();
-                let app2 = app.clone();
-                let label2 = label.clone();
-                app.run_on_main_thread(move || {
-                    let res = if let Some(mw) = app2.get_window("main") {
-                        webview_manager::create_service_webview(&app2, &mw, &label2, &url, &l)
-                            .map(|_| ())
-                    } else {
-                        Err("no main window".into())
-                    };
-                    let _ = tx.send(res);
-                })
-                .map_err(|e| e.to_string())?;
-                rx.await.map_err(|e| e.to_string())??;
-                let mut s = state.lock().unwrap();
+            if let Some(r) = rect {
+                crate::webview_ops::create_service(&app, label.clone(), url, r).await?;
+                let mut s = state.write().await;
                 if !s.created_webview_labels.contains(&label) {
                     s.created_webview_labels.push(label);
                 }
@@ -489,15 +452,15 @@ pub async fn switch_service_webview(
         }
     }
 
-    let snapshot = state.lock().unwrap().clone();
+    let snapshot = state.read().await.clone();
     webview_manager::switch_service(&app, &service_id, &snapshot);
     Ok(())
 }
 
 #[tauri::command]
-pub fn remove_service_webview(
+pub async fn remove_service_webview(
     app: AppHandle,
-    state: State<Mutex<AppState>>,
+    state: State<'_, RwLock<AppState>>,
     service_id: String,
 ) -> Result<(), String> {
     let label = format!("service-{}", service_id);
@@ -506,14 +469,17 @@ pub fn remove_service_webview(
         let _ = wv.close();
     }
 
-    let mut s = state.lock().unwrap();
+    let mut s = state.write().await;
     s.created_webview_labels.retain(|l| l != &label);
     Ok(())
 }
 
 #[tauri::command]
-pub fn hide_all_child_webviews(app: AppHandle, state: State<Mutex<AppState>>) {
-    let active_service_id = state.lock().unwrap().active_service_id.clone();
+pub async fn hide_all_child_webviews(
+    app: AppHandle,
+    state: State<'_, RwLock<AppState>>,
+) -> Result<(), ()> {
+    let active_service_id = state.read().await.active_service_id.clone();
 
     if !active_service_id.is_empty() {
         let label = format!("service-{}", active_service_id);
@@ -525,12 +491,16 @@ pub fn hide_all_child_webviews(app: AppHandle, state: State<Mutex<AppState>>) {
     if let Some(wv) = app.get_webview("ai-webview") {
         let _ = wv.hide();
     }
+    Ok(())
 }
 
 #[tauri::command]
-pub fn restore_child_webviews(app: AppHandle, state: State<Mutex<AppState>>) {
+pub async fn restore_child_webviews(
+    app: AppHandle,
+    state: State<'_, RwLock<AppState>>,
+) -> Result<(), ()> {
     let (active_service_id, show_ai_companion) = {
-        let s = state.lock().unwrap();
+        let s = state.read().await;
         (s.active_service_id.clone(), s.show_ai_companion)
     };
 
@@ -546,77 +516,76 @@ pub fn restore_child_webviews(app: AppHandle, state: State<Mutex<AppState>>) {
             let _ = wv.show();
         }
     }
+    Ok(())
 }
 
 #[tauri::command]
-pub async fn create_ai_webview(app: AppHandle, url: String) -> Result<(), String> {
+pub async fn create_ai_webview(
+    app: AppHandle,
+    state: State<'_, RwLock<AppState>>,
+    url: String,
+) -> Result<(), String> {
     if let Some(wv) = app.get_webview("ai-webview") {
         if let Ok(parsed_url) = url.parse::<url::Url>() {
             let _ = wv.navigate(parsed_url);
         }
-        let state = app.state::<Mutex<AppState>>();
-        let mut s = state.lock().unwrap();
-        s.ai_webview_created = true;
+        state.write().await.ai_webview_created = true;
         return Ok(());
     }
 
-    let layout_info = {
-        let state = app.state::<Mutex<AppState>>();
-        let s = state.lock().unwrap();
+    let rect = {
+        let s = state.read().await;
         if let Some(main_win) = app.get_window("main") {
-            crate::webview_manager::get_layout_params(&main_win, &s)
+            let vp =
+                crate::webview_manager::get_viewport(&main_win).ok_or("Failed to get viewport")?;
+            let tree = crate::layout::build_tree_from_state(&s);
+            let rects = crate::layout::compute_rects(&tree, vp);
+            rects
+                .into_iter()
+                .find(|(id, _)| id.0 == "ai")
+                .map(|(_, r)| r)
+                .ok_or_else(|| "ai pane not found in layout".to_string())?
         } else {
-            None
+            return Err("Main window not found".into());
         }
     };
 
-    if let Some(l) = layout_info {
-        let (tx, rx) = tokio::sync::oneshot::channel();
-        let app_clone = app.clone();
-
-        app.run_on_main_thread(move || {
-            let res = if let Some(main_win) = app_clone.get_window("main") {
-                match crate::webview_manager::create_ai_webview(&app_clone, &main_win, &url, &l) {
-                    Ok(_) => Ok(()),
-                    Err(e) => Err(e),
-                }
-            } else {
-                Err("Main window not found".into())
-            };
-            let _ = tx.send(res);
-        })
-        .map_err(|e| e.to_string())?;
-
-        rx.await.map_err(|e| e.to_string())??;
-
-        let state = app.state::<Mutex<AppState>>();
-        let mut s = state.lock().unwrap();
-        s.ai_webview_created = true;
-        Ok(())
-    } else {
-        Err("Failed to compute layout".into())
-    }
+    let gap = crate::layout::RESIZE_GAP;
+    let ai_rect = crate::layout::Rect {
+        x: rect.x + gap,
+        y: rect.y,
+        width: (rect.width - gap).max(0.0),
+        height: rect.height,
+    };
+    crate::webview_ops::create_ai(&app, url, ai_rect).await?;
+    state.write().await.ai_webview_created = true;
+    Ok(())
 }
 
 #[tauri::command]
-pub async fn setup_ai_webview(app: AppHandle, url: String, _width: u32) -> Result<(), String> {
-    create_ai_webview(app, url).await
+pub async fn setup_ai_webview(
+    app: AppHandle,
+    state: State<'_, RwLock<AppState>>,
+    url: String,
+    _width: u32,
+) -> Result<(), String> {
+    create_ai_webview(app, state, url).await
 }
 
 #[tauri::command]
 pub async fn toggle_ai_webview(
     app: AppHandle,
-    state: State<'_, Mutex<AppState>>,
+    state: State<'_, RwLock<AppState>>,
 ) -> Result<bool, String> {
     let show = {
-        let mut s = state.lock().unwrap();
+        let mut s = state.write().await;
         s.show_ai_companion = !s.show_ai_companion;
         s.show_ai_companion
     };
     store::save_value(&app, "showAiCompanion", &show);
 
     println!("[commands] toggle_ai_webview: show={}", show);
-    let snapshot = state.lock().unwrap().clone();
+    let snapshot = state.read().await.clone();
     webview_manager::update_layout(&app, &snapshot);
 
     Ok(show)
@@ -625,40 +594,36 @@ pub async fn toggle_ai_webview(
 #[tauri::command]
 pub async fn resize_ai_webview(
     app: AppHandle,
-    state: State<'_, Mutex<AppState>>,
+    state: State<'_, RwLock<AppState>>,
     width: u32,
 ) -> Result<(), String> {
     let valid_width = width.clamp(300, 800);
-    {
-        let mut s = state.lock().unwrap();
-        s.ai_width = valid_width;
-    }
+    state.write().await.ai_width = valid_width;
     store::save_value(&app, "aiWidth", &valid_width);
 
-    let snapshot = state.lock().unwrap().clone();
+    let snapshot = state.read().await.clone();
     webview_manager::update_layout(&app, &snapshot);
-
     Ok(())
 }
 
 #[tauri::command]
 pub async fn update_layout(
     app: AppHandle,
-    state: State<'_, Mutex<AppState>>,
+    state: State<'_, RwLock<AppState>>,
 ) -> Result<(), String> {
-    let snapshot = state.lock().unwrap().clone();
+    let snapshot = state.read().await.clone();
     webview_manager::update_layout(&app, &snapshot);
     Ok(())
 }
 
 #[tauri::command]
-pub fn switch_ai_service(
+pub async fn switch_ai_service(
     app: AppHandle,
-    state: State<Mutex<AppState>>,
+    state: State<'_, RwLock<AppState>>,
     service_id: String,
 ) -> Result<Option<AiService>, String> {
     let service = {
-        let mut s = state.lock().unwrap();
+        let mut s = state.write().await;
         let found = s
             .ai_services
             .iter()
@@ -685,7 +650,7 @@ pub fn switch_ai_service(
 }
 
 #[tauri::command]
-pub fn send_to_ai_webview(app: AppHandle, text: String) -> Result<(), String> {
+pub async fn send_to_ai_webview(app: AppHandle, text: String) -> Result<(), String> {
     if let Some(ai_wv) = app.get_webview("ai-webview") {
         let js = format!(
             r#"(function() {{
@@ -734,7 +699,6 @@ pub fn open_popup_window_internal(
         }
     };
 
-    // 既存のポップアップウィンドウがあれば閉じる
     if let Some(existing) = app.get_webview_window("popup-auth") {
         let _ = existing.close();
     }
@@ -756,8 +720,6 @@ pub fn open_popup_window_internal(
         let url_str = nav_url.as_str();
         println!("[popup-auth] navigating to: {}", url_str);
 
-        // 汎用的な認証完了判定
-        // 遷移先のURLが、元のサービスURLのドメインを含んでいて、かつ認証系のパスでない場合を完了とみなす
         let mut is_auth_complete = false;
 
         if let Some(ref domain) = target_domain {
@@ -765,7 +727,6 @@ pub fn open_popup_window_internal(
                 is_auth_complete = true;
             }
         } else {
-            // Slack等のハードコードにフォールバック（レガシー対応）
             is_auth_complete = (url_str.contains("app.slack.com")
                 || (url_str.contains(".slack.com") && !url_str.contains("accounts.google")))
                 && !url_str.contains("/signin")
@@ -780,8 +741,7 @@ pub fn open_popup_window_internal(
             let app2 = app_for_nav.clone();
             let pop_source_label = source_label.clone();
 
-            std::thread::spawn(move || {
-                // 呼び出し元のWebViewがあればそこにナビゲート
+            tokio::spawn(async move {
                 if let Some(label) = pop_source_label {
                     if let Some(wv) = app2.get_webview(&label) {
                         if let Ok(u) = owned_url.parse::<url::Url>() {
@@ -790,10 +750,9 @@ pub fn open_popup_window_internal(
                         let _ = wv.show();
                     }
                 } else {
-                    // sourceが無い場合は従来通りSlackを探す
                     let slack_label = {
-                        let state = app2.state::<std::sync::Mutex<crate::state::AppState>>();
-                        let s = state.lock().unwrap();
+                        let state = app2.state::<RwLock<crate::state::AppState>>();
+                        let s = state.read().await;
                         s.services
                             .iter()
                             .find(|svc| svc.url.contains("slack.com"))
@@ -810,7 +769,7 @@ pub fn open_popup_window_internal(
                 }
 
                 let _ = app2.emit("auth-completed", &owned_url);
-                std::thread::sleep(std::time::Duration::from_millis(1000));
+                tokio::time::sleep(std::time::Duration::from_millis(1000)).await;
                 if let Some(w) = app2.get_webview_window("popup-auth") {
                     let _ = w.close();
                 }
@@ -841,14 +800,17 @@ pub fn open_popup_window(app: AppHandle, url: String) -> Result<(), String> {
 // ========================================
 
 #[tauri::command]
-pub fn update_notification_count(
+pub async fn update_notification_count(
     app: AppHandle,
-    state: State<Mutex<AppState>>,
+    state: State<'_, RwLock<AppState>>,
     service_id: String,
     count: u32,
 ) -> Result<(), String> {
-    let mut s = state.lock().unwrap();
-    s.badge_counts.insert(service_id.clone(), count);
+    state
+        .write()
+        .await
+        .badge_counts
+        .insert(service_id.clone(), count);
 
     let _ = app.emit(
         "badge-updated",
@@ -862,21 +824,22 @@ pub fn update_notification_count(
 }
 
 #[tauri::command]
-pub fn update_favicon(
+pub async fn update_favicon(
     app: AppHandle,
-    state: State<Mutex<AppState>>,
+    state: State<'_, RwLock<AppState>>,
     service_id: String,
     favicon_url: String,
 ) -> Result<(), String> {
-    let mut s = state.lock().unwrap();
-
-    if let Some(svc) = s.services.iter_mut().find(|svc| svc.id == service_id) {
-        if svc.favicon_url.as_deref() == Some(&favicon_url) {
-            return Ok(());
+    {
+        let mut s = state.write().await;
+        if let Some(svc) = s.services.iter_mut().find(|svc| svc.id == service_id) {
+            if svc.favicon_url.as_deref() == Some(&favicon_url) {
+                return Ok(());
+            }
+            svc.favicon_url = Some(favicon_url.clone());
         }
-        svc.favicon_url = Some(favicon_url.clone());
+        store::save_services(&app, &s.services);
     }
-    store::save_services(&app, &s.services);
 
     let _ = app.emit(
         "favicon-updated",

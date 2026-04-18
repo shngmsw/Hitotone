@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Titlebar</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
+    body {
+      width: 100%; height: 100%;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+      display: flex; align-items: center;
+      overflow: hidden;
+    }
+    #drag-area {
+      flex: 1;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      padding-left: 12px;
+      cursor: grab;
+    }
+    #drag-area:active { cursor: grabbing; }
+    #app-title {
+      color: rgba(255,255,255,0.7);
+      font-size: 12px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      pointer-events: none;
+    }
+    #win-controls {
+      display: flex;
+      align-items: center;
+      height: 100%;
+    }
+    .win-btn {
+      width: 46px; height: 100%;
+      border: none; background: transparent;
+      color: rgba(255,255,255,0.7);
+      font-size: 12px;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: background 0.1s;
+    }
+    .win-btn:hover { background: rgba(255,255,255,0.15); color: #fff; }
+    #close-btn:hover { background: #e81123; color: #fff; }
+  </style>
+</head>
+<body>
+  <div id="drag-area" data-tauri-drag-region>
+    <span id="app-title">Hitotone</span>
+  </div>
+  <div id="win-controls">
+    <button id="minimize-btn" class="win-btn" title="最小化">&#8212;</button>
+    <button id="maximize-btn" class="win-btn" title="最大化">&#9633;</button>
+    <button id="close-btn" class="win-btn" title="閉じる">&#10005;</button>
+  </div>
+  <script type="module">
+    import { getCurrentWindow } from '@tauri-apps/api/window';
+    const win = getCurrentWindow();
+    document.getElementById('minimize-btn').addEventListener('click', () => win.minimize());
+    document.getElementById('maximize-btn').addEventListener('click', () => win.toggleMaximize());
+    document.getElementById('close-btn').addEventListener('click', () => win.close());
+  </script>
+</body>
+</html>

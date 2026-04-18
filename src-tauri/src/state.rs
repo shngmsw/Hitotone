@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::sync::Arc;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Service {
@@ -60,6 +61,52 @@ pub struct AppState {
     #[serde(skip)]
     pub ai_webview_created: bool,
 }
+
+// ========================================
+// Layout tree types (Phase 2 foundation)
+// ========================================
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct PaneId(pub String);
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PaneKind {
+    Chrome,
+    Service(String),
+    AiCompanion,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Pane {
+    pub id: PaneId,
+    pub kind: PaneKind,
+    pub webview_label: String,
+    pub visible: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SplitDirection {
+    Horizontal,
+    Vertical,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub enum SplitSize {
+    Fixed(f32),
+    Flex(f32),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum LayoutNode {
+    Leaf(Pane),
+    Split {
+        direction: SplitDirection,
+        sizes: Vec<SplitSize>,
+        children: Vec<LayoutNode>,
+    },
+}
+
+pub type LayoutTree = Arc<LayoutNode>;
 
 impl Default for AppState {
     fn default() -> Self {

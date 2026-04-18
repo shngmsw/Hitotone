@@ -20,6 +20,7 @@
     "core:window:allow-set-focus",
     "core:window:allow-inner-size",
     "core:window:allow-outer-size",
+    "core:window:allow-start-dragging",
     "core:webview:default",
     "core:webview:allow-create-webview",
     "core:webview:allow-create-webview-window",

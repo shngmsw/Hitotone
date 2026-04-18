@@ -2,6 +2,7 @@
 
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 import { AiCompanionManager } from './AiCompanionManager.js';
 import { EventManager } from './EventManager.js';
 import { LoadingManager } from './LoadingManager.js';
@@ -33,6 +34,12 @@ class Hitotone {
   async init() {
     try {
       console.log('[Hitotone] init() start');
+
+      // タイトルバーボタン
+      const win = getCurrentWindow();
+      document.getElementById('tb-minimize')?.addEventListener('click', () => win.minimize());
+      document.getElementById('tb-maximize')?.addEventListener('click', () => win.toggleMaximize());
+      document.getElementById('tb-close')?.addEventListener('click', () => win.close());
 
       // プラットフォーム判定してbodyにクラスを追加
       const platform = await invoke('get_platform');

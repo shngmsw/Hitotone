@@ -1,17 +1,16 @@
 use crate::state::{AiService, AppState, Service, WindowBounds};
-use std::sync::Mutex;
 use tauri::AppHandle;
 use tauri_plugin_store::StoreExt;
 
 const STORE_FILE: &str = "hitotone-config.json";
 
-pub fn load_state(app: &AppHandle, state: &Mutex<AppState>) {
-    let store = match app.store(STORE_FILE) {
-        Ok(s) => s,
-        Err(_) => return,
-    };
+pub fn load_state(app: &AppHandle) -> AppState {
+    let mut s = AppState::default();
 
-    let mut s = state.lock().unwrap();
+    let store = match app.store(STORE_FILE) {
+        Ok(store) => store,
+        Err(_) => return s,
+    };
 
     if let Some(val) = store.get("services") {
         if let Ok(services) = serde_json::from_value::<Vec<Service>>(val.clone()) {
@@ -54,6 +53,8 @@ pub fn load_state(app: &AppHandle, state: &Mutex<AppState>) {
             s.window_bounds = bounds;
         }
     }
+
+    s
 }
 
 pub fn save_state(app: &AppHandle, state: &AppState) {
