@@ -10,23 +10,9 @@ use tauri::{AppHandle, Emitter, Manager, State};
 use tokio::sync::RwLock;
 use uuid::Uuid;
 
-/// chrome WebView から modal 表示をリクエスト。service/AI WebView を隠してから親に通知。
+/// chrome WebView から modal 表示をリクエスト。renderer 側の showModal() が hide_all_child_webviews を呼ぶ。
 #[tauri::command]
-pub async fn request_open_modal(
-    app: AppHandle,
-    state: State<'_, RwLock<AppState>>,
-    modal_type: String,
-) -> Result<(), ()> {
-    let active_service_id = state.read().await.active_service_id.clone();
-    if !active_service_id.is_empty() {
-        let label = format!("service-{}", active_service_id);
-        if let Some(wv) = app.get_webview(&label) {
-            let _ = wv.hide();
-        }
-    }
-    if let Some(wv) = app.get_webview("ai-webview") {
-        let _ = wv.hide();
-    }
+pub async fn request_open_modal(app: AppHandle, modal_type: String) -> Result<(), ()> {
     let _ = app.emit("open-modal", &modal_type);
     Ok(())
 }
@@ -85,9 +71,20 @@ pub async fn remove_service(
         s.services.retain(|svc| svc.id != service_id);
         s.created_webview_labels.retain(|l| l != &label);
         store::save_services(&app, &s.services);
+        // Remove service from all spaces' trees
+        for space in s.spaces.iter_mut() {
+            space.tree = layout::remove_service_from_tree(&space.tree, &service_id);
+        }
+        s.load_active_space_tree();
+        store::save_spaces(&app, &s.spaces, &s.active_space_id);
         s.services.clone()
     };
     let _ = app.emit("service-list-updated", ());
+
+    let snapshot = state.read().await.clone();
+    webview_manager::update_layout(&app, &snapshot);
+    let _ = app.emit("pane-tree-updated", ());
+
     Ok(services)
 }
 
@@ -365,7 +362,8 @@ pub async fn create_service_webview(
     let rect = {
         let s = state.read().await;
         app.get_window("main")
-            .and_then(|w| webview_manager::get_service_zone_rect(&w, &s))
+            .and_then(|w| webview_manager::get_viewport(&w))
+            .map(|vp| layout::compute_service_zone_rect(vp, &s))
             .ok_or_else(|| "Failed to compute service zone rect".to_string())?
     };
 

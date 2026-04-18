@@ -470,6 +470,35 @@ pub fn assign_service_to_pane(
     }
 }
 
+/// サービスが削除されたとき、tree 内の該当 pane の kind を Service("") に戻す。
+pub fn remove_service_from_tree(tree: &LayoutNode, service_id: &str) -> LayoutNode {
+    match tree {
+        LayoutNode::Leaf(pane) => {
+            if let PaneKind::Service(id) = &pane.kind {
+                if id == service_id {
+                    let mut new_pane = pane.clone();
+                    new_pane.kind = PaneKind::Service(String::new());
+                    new_pane.webview_label = String::new();
+                    return LayoutNode::Leaf(new_pane);
+                }
+            }
+            LayoutNode::Leaf(pane.clone())
+        }
+        LayoutNode::Split {
+            direction,
+            sizes,
+            children,
+        } => LayoutNode::Split {
+            direction: *direction,
+            sizes: sizes.clone(),
+            children: children
+                .iter()
+                .map(|c| remove_service_from_tree(c, service_id))
+                .collect(),
+        },
+    }
+}
+
 pub fn first_pane_id(node: &LayoutNode) -> Option<PaneId> {
     match node {
         LayoutNode::Leaf(pane) => Some(pane.id.clone()),

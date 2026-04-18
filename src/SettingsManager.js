@@ -86,20 +86,17 @@ export class SettingsManager {
         const serviceId = btn.dataset.serviceId;
         if (confirm('このサービスを削除しますか？')) {
           this.hitotone.services = await invoke('remove_service', { serviceId });
-          this.hitotone.serviceDockManager.render();
+          // serviceDockManager.render() 削除 (pane-tree-updated イベントで PaneTreeManager が自動更新)
 
-          // WebViewの削除もRust側で処理
           await invoke('remove_service_webview', { serviceId });
 
-          if (this.hitotone.activeServiceId === serviceId && this.hitotone.services.length > 0) {
-            await this.hitotone.webViewManager.switchService(this.hitotone.services[0].id);
-          } else if (this.hitotone.services.length === 0) {
-            // 全てのサービスが削除された場合はオンボーディングを表示
+          if (this.hitotone.services.length === 0) {
             this.hitotone.activeServiceId = null;
             const onboarding = document.getElementById('onboarding-screen');
             if (onboarding) this.hitotone.showModal(onboarding);
           }
 
+          await this.hitotone.paneTreeManager.refresh();
           this.open(); // リストを更新
         }
       });

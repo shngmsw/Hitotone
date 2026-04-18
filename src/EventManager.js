@@ -82,6 +82,8 @@ export class EventManager {
     const addServiceBtn = document.getElementById('add-service-btn');
     if (addServiceBtn) {
       addServiceBtn.addEventListener('click', () => {
+        // Close settings first, then open add-service
+        this.hitotone.settingsManager.close();
         const modal = document.getElementById('add-service-modal');
         if (modal) this.hitotone.showModal(modal);
       });

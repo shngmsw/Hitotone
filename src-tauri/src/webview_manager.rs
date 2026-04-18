@@ -137,27 +137,6 @@ pub fn chrome_user_agent() -> &'static str {
     CHROME_USER_AGENT
 }
 
-/// Service zone rect — always the same position regardless of which service is active.
-pub fn get_service_zone_rect(
-    main_window: &tauri::Window,
-    state: &AppState,
-) -> Option<crate::layout::Rect> {
-    let vp = get_viewport(main_window)?;
-    let tb = crate::layout::TITLE_BAR_HEIGHT;
-    let ai_w = if state.show_ai_companion {
-        state.ai_width as f32
-    } else {
-        0.0
-    };
-    let svc_w = (vp.width - crate::layout::DOCK_WIDTH - ai_w).max(crate::layout::MIN_SERVICE_WIDTH);
-    Some(crate::layout::Rect {
-        x: crate::layout::DOCK_WIDTH,
-        y: tb,
-        width: svc_w,
-        height: vp.height - tb,
-    })
-}
-
 /// Get viewport Rect from main window (logical pixels).
 pub fn get_viewport(main_window: &tauri::Window) -> Option<crate::layout::Rect> {
     let window_size = main_window.inner_size().ok()?;
@@ -249,10 +228,20 @@ pub fn create_service_webview(
     let service_id = label.strip_prefix("service-").unwrap_or(label);
 
     // Per-service data directory: persists cookies/session across restarts
+    let safe_id: String = service_id
+        .chars()
+        .map(|c| {
+            if c.is_alphanumeric() || c == '-' || c == '_' {
+                c
+            } else {
+                '_'
+            }
+        })
+        .collect();
     let data_dir = app
         .path()
         .app_data_dir()
-        .map(|p| p.join("webview-data").join(service_id));
+        .map(|p| p.join("webview-data").join(safe_id));
 
     let mut builder =
         tauri::WebviewBuilder::new(label, tauri::WebviewUrl::External(parsed_url.clone()))
